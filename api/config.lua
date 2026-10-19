@@ -959,6 +959,10 @@ function pfUI:LoadConfig()
 
   pfUI:UpdateConfig("character",  "inventory",   "durability",       "1")
   pfUI:UpdateConfig("character",  "inventory",   "equipflyout",      "0")
+  pfUI:UpdateConfig("equipmentmanager", nil,     "autoswitch",       "1")
+  pfUI:UpdateConfig("equipmentmanager", nil,     "announce",         "1")
+  pfUI:UpdateConfig("equipmentmanager", nil,     "unusedquality",    "1")
+  pfUI:UpdateConfig("equipmentmanager", nil,     "unusedbank",       "1")
   pfUI:UpdateConfig("character",  "reputation",  "repRequired",      "1")
   pfUI:UpdateConfig("thirdparty", nil,           "chatbg",           "1")
   pfUI:UpdateConfig("thirdparty", nil,           "showmeter",        "0")
@@ -1422,7 +1426,7 @@ function pfUI:MigrateConfig()
   end
 
   -- Stamp the version we've migrated to. Dev / git-cloned builds carry
-  -- "@project-version@" in the toc, which pfUI.lua normalizes to "dev" —
+  -- "v9.0.26" in the toc, which pfUI.lua normalizes to "dev" —
   -- writing that here would have checkversion() parse it back as 0/0/0 on
   -- the next /reload and re-fire every migration block, clobbering user
   -- toggles (notably the >3.6.1 buff migration that rewrites
