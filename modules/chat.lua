@@ -796,6 +796,10 @@ pfUI:RegisterModule("chat", function ()
       return frame:HookAddMessage(text, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17)
     end
 
+    -- payload of the CHAT_MSG event printing this line; nil for lines
+    -- that don't come from one (system text, addon output, history)
+    local event, _, sender, _, _, _, _, _, _, _, _, _, guid = GetCurrentChatEvent()
+
     -- Remove prat CLINKs
     text = gsub(text, "{CLINK:(%x+):([%d-]-:[%d-]-:[%d-]-:[%d-]-:[%d-]-:[%d-]-:[%d-]-:[%d-]-):([^}]-)}", "|c%1|Hitem:%2|h[%3]|h|r") -- tbc
     text = gsub(text, "{CLINK:(%x+):([%d-]-:[%d-]-:[%d-]-:[%d-]-):([^}]-)}", "|c%1|Hitem:%2|h[%3]|h|r") -- vanilla
@@ -816,10 +820,9 @@ pfUI:RegisterModule("chat", function ()
       -- the engine name-queries a chat sender before the event fires,
       -- so the sender's GUID always resolves; other names in the text
       -- fall back to the name-keyed lookups
-      local guid = GetCurrentChatGUID()
-      local _, senderClass, _, senderRace, senderSex, senderName
-      if guid then
-        _, senderClass, _, senderRace, senderSex, senderName = GetPlayerInfoByGUID(guid)
+      local _, senderClass, senderRace, senderSex
+      if guid and guid ~= "" then
+        _, senderClass, _, senderRace, senderSex = GetPlayerInfoByGUID(guid)
       end
 
       for name in gfind(text, "|Hplayer:(.-)|h") do
@@ -827,7 +830,7 @@ pfUI:RegisterModule("chat", function ()
         local color = unknowncolorhex
         local match = false
         local class, raceKey, sex
-        if real == senderName then
+        if senderClass and real == sender then
           class, raceKey, sex = senderClass, senderRace, senderSex
         else
           _, class, _, raceKey, sex = C_PlayerCache.GetPlayerInfoByName(real)
@@ -871,13 +874,8 @@ pfUI:RegisterModule("chat", function ()
     end
 
     -- reduce channel name to number
-    if C.chat.text.channelnumonly == "1" then
-      local channel = string.gsub(text, ".*%[(.-)%]%s+(.*|Hplayer).+", "%1")
-      if string.find(channel, "%d+%. ") then
-        channel = string.gsub(channel, "(%d+)%..*", "channel%1")
-        channel = string.gsub(channel, "channel", "")
-        text = string.gsub(text, "%[%d+%..-%]%s+(.*|Hplayer)", left .. channel .. right .. " %1")
-      end
+    if C.chat.text.channelnumonly == "1" and event == "CHAT_MSG_CHANNEL" then
+      text = string.gsub(text, "%[(%d+)%..-%] ", left .. "%1" .. right .. " ", 1)
     end
 
     -- detect the whisper prefix BEFORE prepending a timestamp; the timestamp
