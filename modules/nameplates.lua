@@ -377,16 +377,23 @@ pfUI:RegisterModule("nameplates", function ()
   end
 
 
-  local function GetUnitType(red, green, blue)
-    if red > .9 and green < .2 and blue < .2 then
-      return "ENEMY_NPC"
-    elseif red > .9 and green > .9 and blue < .2 then
-      return "NEUTRAL_NPC"
-    elseif red < .2 and green < .2 and blue > 0.9 then
-      return "FRIENDLY_PLAYER"
-    elseif red < .2 and green > .9 and blue < .2 then
-      return "FRIENDLY_NPC"
-    end
+  -- UnitSelectionType: 0 hostile, 1 unfriendly, 2 neutral, 3 friendly (or a
+  -- PvP-flagged player), 4 unflagged player. Type 3 is ambiguous, so callers
+  -- still promote *_NPC to *_PLAYER from their own player check.
+  local selectionTypes = {
+    [0] = "ENEMY_NPC",
+    [1] = "ENEMY_NPC",
+    [2] = "NEUTRAL_NPC",
+    [3] = "FRIENDLY_NPC",
+    [4] = "FRIENDLY_PLAYER",
+  }
+
+  local function GetUnitType(plate)
+    -- an unresolved token reads as the player's own type (4), so never ask
+    -- without a GUID
+    local guid = plate.cachedGuid
+    if not guid or guid == "" then return "ENEMY_NPC" end
+    return selectionTypes[UnitSelectionType(guid)]
   end
 
   local filter, list, cache
@@ -1080,8 +1087,7 @@ nameplates:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "target", "focu
       levelFromDB = true
     end
 
-    local red, green, blue = plate.original.healthbar:GetStatusBarColor()
-    local unittype = GetUnitType(red, green, blue) or "ENEMY_NPC"
+    local unittype = GetUnitType(plate)
     local font_size = C.nameplates.use_unitfonts == "1" and C.global.font_unit_size or C.global.font_size
 
     -- ignore players with npc names if plate level is lower than player level
