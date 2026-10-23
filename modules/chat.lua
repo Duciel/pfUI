@@ -782,16 +782,6 @@ pfUI:RegisterModule("chat", function ()
   local r,g,b = GetStringColor(C.chat.text.unknowncolor)
   local unknowncolorhex = rgbhex(r,g,b)
 
-  -- Suppress FriendsFrame's WHO_LIST_UPDATE handling for our DLL-issued
-  -- name lookups so they don't pop the friends panel. User-issued /who
-  -- still works because IsWhoQueryPending only reports true for queries
-  -- issued via C_FriendList.SendWhoQueryByName.
-  local original_FriendsFrame_OnEvent = FriendsFrame_OnEvent
-  _G.FriendsFrame_OnEvent = function()
-    if _G.event == "WHO_LIST_UPDATE" and C_FriendList.IsWhoQueryPending() then return end
-    return original_FriendsFrame_OnEvent()
-  end
-
   local function GetPlayerLevel(name)
     if not pfUI_playerDB then return nil end
     if not pfUI_playerDB[name] then return nil end
@@ -823,25 +813,31 @@ pfUI:RegisterModule("chat", function ()
 
     -- display class colors if already indexed
     if C.chat.text.classcolor == "1" then
+      -- the engine name-queries a chat sender before the event fires,
+      -- so the sender's GUID always resolves; other names in the text
+      -- fall back to the name-keyed lookups
+      local guid = GetCurrentChatGUID()
+      local _, senderClass, _, senderRace, senderSex, senderName
+      if guid then
+        _, senderClass, _, senderRace, senderSex, senderName = GetPlayerInfoByGUID(guid)
+      end
+
       for name in gfind(text, "|Hplayer:(.-)|h") do
         local real, _ = strsplit(":", name)
         local color = unknowncolorhex
         local match = false
-        local _, class, _, raceKey, sex = C_PlayerCache.GetPlayerInfoByName(real)
-        -- local guid = GetCurrentChatGUID()
-        -- if guid then
-        --   _, class = GetPlayerInfoByGUID(guid)
-        -- end
+        local class, raceKey, sex
+        if real == senderName then
+          class, raceKey, sex = senderClass, senderRace, senderSex
+        else
+          _, class, _, raceKey, sex = C_PlayerCache.GetPlayerInfoByName(real)
+        end
         if not class then
           class = GetUnitInfo(real)
         end
-        if class then
-          if class ~= UNKNOWN then
-            color = "|c" .. PFUI_CLASS_COLORS[class].colorStr
-            match = true
-          end
-        elseif C.chat.text.whosearchunknown == "1" then
-          C_FriendList.SendWhoQueryByName(name) -- cooldown + state managed by DLL
+        if class and class ~= UNKNOWN then
+          color = "|c" .. PFUI_CLASS_COLORS[class].colorStr
+          match = true
         end
 
         if C.chat.text.tintunknown == "1" or match then
