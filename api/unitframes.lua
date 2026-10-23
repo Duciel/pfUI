@@ -78,10 +78,6 @@ local glow2 = {
   insets = {left = 0, right = 0, top = 0, bottom = 0},
 }
 
-local function DoNothing()
-  return
-end
-
 local function BuffOnEnter()
   local parent = this:GetParent()
   if not parent.label then return end
@@ -788,25 +784,7 @@ function pfUI.uf:UpdateConfig()
 
       f.buffs[i]:SetSize(f.config.buffsize, f.config.buffsize)
       
-      -- Create CD frame if it doesn't exist
-      if not f.buffs[i].cd then
-        if cooldown_anim == 1 then
-          -- Animation enabled: Use Model frame with CooldownFrameTemplate
-          f.buffs[i].cd = CreateFrame("Model", f.buffs[i]:GetName() .. "Cooldown", f.buffs[i], "CooldownFrameTemplate")
-        else
-          -- Animation disabled: Use regular Frame with dummy functions
-          f.buffs[i].cd = CreateFrame("Frame", f.buffs[i]:GetName() .. "Cooldown", f.buffs[i])
-          f.buffs[i].cd.AdvanceTime = DoNothing
-          f.buffs[i].cd.SetSequence = DoNothing
-          f.buffs[i].cd.SetSequenceTime = DoNothing
-        end
-      end
-      
-      -- Always update CD properties (in case size changed)
-      local cdScale = f.config.buffsize / 32
-      f.buffs[i].cd:ClearAllPoints()
-      f.buffs[i].cd:SetScale(cdScale)
-      f.buffs[i].cd:SetAllPoints(f.buffs[i])
+      f.buffs[i].cd = f.buffs[i].cd or CreateFrame("Cooldown", f.buffs[i]:GetName() .. "Cooldown", f.buffs[i], "CooldownFrameTemplate")
       f.buffs[i].cd:SetFrameLevel(14)
       f.buffs[i].cd.pfCooldownType = "ALL"
       f.buffs[i].cd.pfCooldownStyleText = cooldown_text
@@ -861,25 +839,7 @@ function pfUI.uf:UpdateConfig()
       f.debuffs[i]:SetSize(f.config.debuffsize, f.config.debuffsize)
       f.debuffs[i]:SetNormalTexture(nil)
       
-      -- Create CD frame if it doesn't exist
-      if not f.debuffs[i].cd then
-        if cooldown_anim == 1 then
-          -- Animation enabled: Use Model frame with CooldownFrameTemplate
-          f.debuffs[i].cd = CreateFrame("Model", f.debuffs[i]:GetName() .. "Cooldown", f.debuffs[i], "CooldownFrameTemplate")
-        else
-          -- Animation disabled: Use regular Frame with dummy functions
-          f.debuffs[i].cd = CreateFrame("Frame", f.debuffs[i]:GetName() .. "Cooldown", f.debuffs[i])
-          f.debuffs[i].cd.AdvanceTime = DoNothing
-          f.debuffs[i].cd.SetSequence = DoNothing
-          f.debuffs[i].cd.SetSequenceTime = DoNothing
-        end
-      end
-      
-      -- Always update CD properties (in case size changed)
-      local cdScale = f.config.debuffsize / 32
-      f.debuffs[i].cd:ClearAllPoints()
-      f.debuffs[i].cd:SetScale(cdScale)
-      f.debuffs[i].cd:SetAllPoints(f.debuffs[i])
+      f.debuffs[i].cd = f.debuffs[i].cd or CreateFrame("Cooldown", f.debuffs[i]:GetName() .. "Cooldown", f.debuffs[i], "CooldownFrameTemplate")
       f.debuffs[i].cd:SetFrameLevel(14)
       f.debuffs[i].cd.pfCooldownType = "ALL"
       f.debuffs[i].cd.pfCooldownStyleText = cooldown_text
@@ -2318,17 +2278,7 @@ function pfUI.uf:AddIcon(frame, pos, icon, timeleft, stacks, start, duration)
     frame.icon[pos].stacks:SetJustifyH("RIGHT")
     frame.icon[pos].stacks:SetJustifyV("BOTTOM")
 
-    -- Check if parent frame has cooldown animation enabled
-    local parent_cooldown_anim = frame.config and tonumber(frame.config.cooldown_anim) or 1
-    if parent_cooldown_anim == 1 then
-      frame.icon[pos].cd = CreateFrame("Model", nil, frame.icon[pos])
-    else
-      frame.icon[pos].cd = CreateFrame("Frame", nil, frame.icon[pos])
-      frame.icon[pos].cd.AdvanceTime = DoNothing
-      frame.icon[pos].cd.SetSequence = DoNothing
-      frame.icon[pos].cd.SetSequenceTime = DoNothing
-    end
-    
+    frame.icon[pos].cd = CreateFrame("Cooldown", nil, frame.icon[pos], "CooldownFrameTemplate")
     frame.icon[pos].cd.pfCooldownStyleAnimation = 0
     frame.icon[pos].cd.pfCooldownType = "ALL"
     frame.icon[pos].cd:SetFrameLevel(48)

@@ -280,10 +280,6 @@ pfUI:RegisterModule("nameplates", function ()
     return color
   end
 
-  local function DoNothing()
-    return
-  end
-
   local function DisableObject(object)
     if not object then return end
     if not object.GetObjectType then return end
@@ -437,22 +433,8 @@ pfUI:RegisterModule("nameplates", function ()
     plate.debuffs[index].stacks:SetJustifyV("BOTTOM")
     plate.debuffs[index].stacks:SetTextColor(1,1,0)
 
-    -- PERF: Use lightweight fake cooldown frame when animation disabled
-    -- The Model-based CooldownFrameTemplate causes major lag with many nameplates
-    if cfg.debuffanim ~= 1 then
-      plate.debuffs[index].cd = CreateFrame("Frame", plate.platename.."Debuff"..index.."Cooldown", plate.debuffs[index])
-      plate.debuffs[index].cd:SetAllPoints(plate.debuffs[index])
-      plate.debuffs[index].cd:SetFrameLevel(6)
-      plate.debuffs[index].cd:SetScript("OnUpdate", CooldownFrame_OnUpdateModel)
-      plate.debuffs[index].cd.AdvanceTime = DoNothing
-      plate.debuffs[index].cd.SetSequence = DoNothing
-      plate.debuffs[index].cd.SetSequenceTime = DoNothing
-    else
-      -- Use CooldownFrameTemplate for animation
-      plate.debuffs[index].cd = CreateFrame("Model", plate.platename.."Debuff"..index.."Cooldown", plate.debuffs[index], "CooldownFrameTemplate")
-      plate.debuffs[index].cd:SetAllPoints(plate.debuffs[index])
-      plate.debuffs[index].cd:SetFrameLevel(6)
-    end
+    plate.debuffs[index].cd = CreateFrame("Cooldown", plate.platename.."Debuff"..index.."Cooldown", plate.debuffs[index], "CooldownFrameTemplate")
+    plate.debuffs[index].cd:SetFrameLevel(6)
 
     -- Set initial config flags (will be cached per-cooldown later)
     plate.debuffs[index].cd.pfCooldownStyleAnimation = cfg.debuffanim

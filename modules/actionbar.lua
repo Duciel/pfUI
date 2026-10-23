@@ -1008,7 +1008,7 @@ pfUI:RegisterModule("actionbar", function ()
       f.slot = id
 
       -- cooldown
-      f.cd = CreateFrame("Model", f:GetName() .. "Cooldown", f, "CooldownFrameTemplate")
+      f.cd = CreateFrame("Cooldown", f:GetName() .. "Cooldown", f, "CooldownFrameTemplate")
       f.cd.pfCooldownStyleAnimation = 1
       f.cd.pfCooldownType = "NOGCD"
       f.cd.pfCooldownSize = cd_size
