@@ -1160,17 +1160,21 @@ function pfUI.api.CreateInfoBox(text, time, parent, height)
     infobox = CreateFrame("Button", "pfInfoBox", UIParent)
     infobox:Hide()
 
+    infobox.fade = infobox:CreateAnimationGroup()
+    local fade = infobox.fade:CreateAnimation("Alpha")
+    fade:SetChange(-1)
+    fade:SetDuration(.3)
+    infobox.fade:SetScript("OnFinished", function()
+      infobox:Hide()
+      infobox:SetAlpha(1)
+    end)
+
     infobox:SetScript("OnUpdate", function()
       local time = infobox.lastshow + infobox.duration - GetTime()
       infobox.timeout:SetValue(time)
 
       if GetTime() > infobox.lastshow + infobox.duration then
-        infobox:SetAlpha(infobox:GetAlpha()-0.05)
-
-        if infobox:GetAlpha() <= 0.1 then
-          infobox:Hide()
-          infobox:SetAlpha(1)
-        end
+        if not infobox.fade:IsPlaying() then infobox.fade:Play() end
       elseif MouseIsOver(this) then
         this:SetAlpha(max(0.4, this:GetAlpha() - .1))
       else
@@ -1214,6 +1218,7 @@ function pfUI.api.CreateInfoBox(text, time, parent, height)
   infobox:SetParent(parent)
 
   infobox:SetFrameStrata("FULLSCREEN_DIALOG")
+  infobox.fade:Stop()
   infobox:Show()
 end
 

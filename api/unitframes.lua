@@ -219,27 +219,6 @@ function pfUI.api.UnitHasAggro(unit)
   return data.state
 end
 
-pfUI.uf.glow = CreateFrame("Frame", nil, UIParent)
-pfUI.uf.glow:SetScript("OnUpdate", function()
-  local fpsmod = GetFramerate() / 30
-  if not this.val or this.val >= .8 then
-    this.mod = -0.01 / fpsmod
-  elseif this.val <= .4 then
-    this.mod = 0.01  / fpsmod
-  end
-  this.val = this.val + this.mod
-end)
-
-pfUI.uf.glow.mod = 0
-pfUI.uf.glow.val = 0.6
-
-function pfUI.uf.glow.UpdateGlowAnimation()
-  local val = pfUI.uf.glow.val or 0.6
-  if val < 0.4 then val = 0.4 end
-  if val > 0.8 then val = 0.8 end
-  this:SetAlpha(val)
-end
-
 function pfUI.uf:UpdateVisibility()
   local self = self or this
 
@@ -451,7 +430,6 @@ function pfUI.uf:UpdateConfig()
   f.glow:SetBackdrop(glow2)
   f.glow:SetPoint("TOPLEFT", f, "TOPLEFT", -6 - default_border,6 + default_border)
   f.glow:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 6 + default_border,-6 - default_border)
-  f.glow:SetScript("OnUpdate", pfUI.uf.glow.UpdateGlowAnimation)
   f.glow:Hide()
 
   f.combat:SetSize(tonumber(f.config.squaresize), tonumber(f.config.squaresize))
@@ -1482,7 +1460,18 @@ function pfUI.uf:CreateUnitFrame(unit, id, config, tick)
   end
 
   f.glow = CreateFrame("Frame", nil, f)
-  f.combat = CreateFrame("Frame", nil, f.hp.bar)
+  -- Pulse between .8 and .4 for good. The group only advances while the glow
+  -- is shown, so a hidden glow costs nothing.
+  f.glow:SetAlpha(.8)
+  f.glow.pulse = f.glow:CreateAnimationGroup()
+  f.glow.pulse:SetLooping("BOUNCE")
+  local fade = f.glow.pulse:CreateAnimation("Alpha")
+  fade:SetChange(-.4)
+  fade:SetDuration(1.3)
+  fade:SetSmoothing("IN_OUT")
+  f.glow.pulse:Play()
+
+  f.combat =CreateFrame("Frame", nil, f.hp.bar)
   f.combat.tex = f.combat:CreateTexture(nil, "OVERLAY")
   f.combat.tex:SetAllPoints()
 

@@ -63,9 +63,16 @@ pfUI:RegisterModule("xpbar", function ()
     end
   end)
 
+  -- Cancel a running fade-out and show the bar at full alpha
+  local function Reveal(self)
+    self.fade:Stop()
+    self:SetAlpha(1)
+  end
+
   local function OnLeave(self)
     local self = self or this
 
+    self.hover = nil
     self.tick = GetTime() + 3.00
     GameTooltip:Hide()
   end
@@ -82,7 +89,8 @@ local function OnEnter(self)
     mode = "REP"
   end
 
-  self:SetAlpha(1)
+  self.hover = true
+  Reveal(self)
 
   if mode == "XP" then
     local xp, xpmax, exh = UnitXP("player"), UnitXPMax("player"), GetXPExhaustion()
@@ -187,9 +195,11 @@ end
     end
 
     if self.always then return end
-    if self:GetAlpha() == 0 or MouseIsOver(self) then return end
-    if ( self.tick or 1) > GetTime() then return else self.tick = GetTime() + .01 end
-    self:SetAlpha(self:GetAlpha() - .05)
+    -- Hover comes from OnEnter/OnLeave, the same mouse focus that reveals the
+    -- bar, so the fade can't restart under the cursor
+    if self:GetAlpha() == 0 or self.hover or self.fade:IsPlaying() then return end
+    if ( self.tick or 1) > GetTime() then return end
+    self.fade:Play()
   end
 
   local function OnEvent(self)
@@ -210,7 +220,7 @@ end
     end
 
     if self.always then
-      self:SetAlpha(1)
+      Reveal(self)
       self:Show()
     end
 
@@ -220,7 +230,7 @@ end
 
     if mode == "XP" then
       self.enabled = true
-      self:SetAlpha(1)
+      Reveal(self)
       self.bar:SetMinMaxValues(0, UnitXPMax("player"))
       self.bar:SetValue(UnitXP("player"))
       if GetXPExhaustion() then
@@ -246,7 +256,7 @@ end
     elseif mode == "PETXP" then
       self.restedbar:Hide()
       self.enabled = true
-      self:SetAlpha(1)
+      Reveal(self)
 
       local currXP, nextXP = GetPetExperience()
       self.bar:SetMinMaxValues(min(0, currXP), nextXP)
@@ -264,7 +274,7 @@ end
       local name, standingID, barMin, barMax, barValue = GetRepDisplay(self.factionID)
       if name then
         self.enabled = true
-        self:SetAlpha(1)
+        Reveal(self)
 
         barMax = barMax - barMin
         barValue = barValue - barMin
@@ -361,6 +371,14 @@ end
 
     -- auto hide
     b:EnableMouse(true)
+
+    if not b.fade then
+      b.fade = b:CreateAnimationGroup()
+      local fade = b.fade:CreateAnimation("Alpha")
+      fade:SetChange(-1)
+      fade:SetDuration(.3)
+      b.fade:SetScript("OnFinished", function() b:SetAlpha(0) end)
+    end
 
     b:RegisterEvent("FACTION_STANDING_CHANGED")
     b:RegisterUnitEvent("UNIT_PET", "player")
