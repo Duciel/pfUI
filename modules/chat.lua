@@ -815,60 +815,54 @@ pfUI:RegisterModule("chat", function ()
       text = pfUI.chat:HandleLink(text)
     end
 
-    -- display class colors if already indexed
-    if C.chat.text.classcolor == "1" then
+    -- display class colors and player levels if already indexed
+    local classcolor = C.chat.text.classcolor == "1"
+    local playerlevel = C.chat.text.playerlevel == "1"
+    if classcolor or playerlevel then
       -- the engine name-queries a chat sender before the event fires,
       -- so the sender's GUID always resolves; other names in the text
       -- fall back to the name-keyed lookups
       local _, senderClass, senderRace, senderSex
-      if guid and guid ~= "" then
+      if classcolor and guid and guid ~= "" then
         _, senderClass, _, senderRace, senderSex = GetPlayerInfoByGUID(guid)
       end
 
       for name in gfind(text, "|Hplayer:(.-)|h") do
         local real, _ = strsplit(":", name)
-        local color = unknowncolorhex
-        local match = false
-        local class, raceKey, sex
-        if senderClass and real == sender then
-          class, raceKey, sex = senderClass, senderRace, senderSex
-        else
-          _, class, _, raceKey, sex = C_PlayerCache.GetPlayerInfoByName(real)
-        end
-        if not class then
-          class = GetUnitInfo(real)
-        end
-        if class and class ~= UNKNOWN then
-          color = "|c" .. PFUI_CLASS_COLORS[class].colorStr
-          match = true
-        end
+        local color, icon = "", ""
 
-        if C.chat.text.tintunknown == "1" or match then
-          local icon = ""
-          if match and C.chat.text.playericons == "1" then
-            icon = GetFactionIcon(raceKey) .. GetRaceIcon(raceKey, sex)
+        if classcolor then
+          local class, raceKey, sex
+          if senderClass and real == sender then
+            class, raceKey, sex = senderClass, senderRace, senderSex
+          else
+            _, class, _, raceKey, sex = C_PlayerCache.GetPlayerInfoByName(real)
           end
-          text = string.gsub(text, "|Hplayer:"..name.."|h%["..real.."%]|h(.-:-)",
-            left..icon..color.."|Hplayer:"..name.."|h" .. color .. real .. "|h|r"..right.."%1")
+          if not class then
+            class = GetUnitInfo(real)
+          end
+          if class and class ~= UNKNOWN then
+            color = "|c" .. PFUI_CLASS_COLORS[class].colorStr
+            if C.chat.text.playericons == "1" then
+              icon = GetFactionIcon(raceKey) .. GetRaceIcon(raceKey, sex)
+            end
+          elseif C.chat.text.tintunknown == "1" then
+            color = unknowncolorhex
+          end
         end
-      end
-    end
 
-    -- display player levels if available
-    if C.chat.text.playerlevel == "1" then
-      for name in gfind(text, "|Hplayer:(.-)|h") do
-        local real, _ = strsplit(":", name)
-        local level = GetPlayerLevel(real)
-
+        local suffix = ""
+        local level = playerlevel and GetPlayerLevel(real)
         if level and level > 0 then
-          local levelcolor = rgbhex(GetDifficultyColor(level))
-          -- Add level after the player name, before the closing bracket
-          text = string.gsub(text, "(|Hplayer:" .. name .. "|h.-|h|r)" .. right,
-            "%1 " .. levelcolor .. level .. "|r" .. right)
-        elseif level and level <= 0 then
+          suffix = " " .. rgbhex(GetDifficultyColor(level)) .. level .. "|r"
+        elseif level then
           -- Show ?? for unknown levels (e.g. -1 from UnitLevel)
-          text = string.gsub(text, "(|Hplayer:" .. name .. "|h.-|h|r)" .. right,
-            "%1 |cffff0000??|r" .. right)
+          suffix = " |cffff0000??|r"
+        end
+
+        if color ~= "" or suffix ~= "" then
+          text = string.gsub(text, "|Hplayer:"..name.."|h%["..real.."%]|h(.-:-)",
+            left..icon..color.."|Hplayer:"..name.."|h" .. color .. real .. "|h|r"..suffix..right.."%1")
         end
       end
     end
