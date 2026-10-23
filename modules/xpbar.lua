@@ -352,6 +352,7 @@ end
     local cr, cg, cb, ca = pfUI.api.GetStringColor(b.xp_color)
     b.bar:SetStatusBarColor(cr,cg,cb,ca)
     b.bar:SetOrientation(b.mode)
+    b.bar:SetRotatesTexture(b.mode == "VERTICAL")
 
     b.bar.text = b.bar.text or b.bar:CreateFontString()
     b.bar.text:SetPoint("CENTER", b, "CENTER", 0, b.text_off_y)
@@ -368,6 +369,7 @@ end
     local cr, cg, cb, ca = pfUI.api.GetStringColor(b.rest_color)
     b.restedbar:SetStatusBarColor(cr,cg,cb,ca)
     b.restedbar:SetOrientation(b.mode)
+    b.restedbar:SetRotatesTexture(b.mode == "VERTICAL")
 
     -- auto hide
     b:EnableMouse(true)

@@ -957,6 +957,7 @@ nameplates:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "target", "focu
     nameplate.name:SetJustifyH(nameTextPos)
 
     nameplate.health:SetOrientation(orientation)
+    nameplate.health:SetRotatesTexture(orientation == "VERTICAL")
     -- Bar anchors to the plate directly so the name's JustifyH (configurable
     -- below) can shift left/right without dragging the bar with it.
     nameplate.health:ClearAllPoints()
