@@ -526,10 +526,10 @@ pfUI:RegisterModule("chat", function ()
 
       if pfUI.chat.hideLock then return end
 
-      if MouseIsOver(pfUI.chat.left, 10, -10, -10, 10) then
+      if pfUI.chat.left:IsMouseOver(10, -10, -10, 10) then
         pfUI.chat.left.panelTop:Show()
         FCF_DockUpdate()
-      elseif MouseIsOver(pfUI.chat.right, 10, -10, -10, 10) then
+      elseif pfUI.chat.right:IsMouseOver(10, -10, -10, 10) then
         -- disable while dock is active
         if pfUI.chat.right:GetAlpha() == 0 then return end
 

@@ -170,7 +170,7 @@ do -- dropdown
   end
 
   local function MenuOnUpdate()
-    if not MouseIsOver(this, 100, -100, -100, 100) then
+    if not this:IsMouseOver(100, -100, -100, 100) then
       this.button:HideMenu()
     end
   end
