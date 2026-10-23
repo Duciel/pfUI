@@ -519,6 +519,10 @@ nameplates:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 -- plate's own frame, against its own token -- see OnCreate and
 -- NAME_PLATE_UNIT_ADDED.
 nameplates:RegisterEvent("PLAYER_GUILD_UPDATE")
+-- The interruptible flips only fire for target and focus, not nameplate
+-- tokens. castState is keyed by GUID, so they still reach those units' plates.
+nameplates:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTIBLE", "target", "focus")
+nameplates:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "target", "focus")
   
   nameplates:SetScript("OnEvent", function()
     -- Stop event handling during logout to prevent crash 132
@@ -679,6 +683,17 @@ nameplates:RegisterEvent("PLAYER_GUILD_UPDATE")
       end
       -- Also propagate to all plates for alpha/strata updates
       this.eventcache = true
+
+    elseif event == "UNIT_SPELLCAST_INTERRUPTIBLE" or event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" then
+      local guid = UnitGUID(arg1)
+      local info = guid and castState[guid]
+      local plate = info and plateByGuid[guid]
+      if plate and plate.castbar then
+        info.noInterrupt = event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE"
+        -- UpdateCastbar only restyles on a new cast; force it
+        plate.castbar.lastEndTime = nil
+        plate.castUpdate = true
+      end
 
     elseif event == "PLAYER_COMBO_POINTS" or event == "UNIT_COMBO_POINTS" then
       -- Only flag the target's plate for combo point update

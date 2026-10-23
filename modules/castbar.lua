@@ -345,6 +345,12 @@ pfUI:RegisterModule("castbar", function ()
     elseif unitstr == "focus" then
       cb:RegisterEvent("PLAYER_FOCUS_CHANGED")
     end
+    -- The shield can flip mid-cast (the caster gains or loses an aura that
+    -- blocks interrupts). These only fire for target and focus.
+    if unitstr == "target" or unitstr == "focus" then
+      cb:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTIBLE", unitstr)
+      cb:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", unitstr)
+    end
 
     cb:SetScript("OnEvent", function()
       local unit = this.unitstr
@@ -400,6 +406,10 @@ pfUI:RegisterModule("castbar", function ()
         if not this.tradeskillTotal then ClearBar(this) end
       elseif event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
         ClearBar(this, true)
+      elseif event == "UNIT_SPELLCAST_INTERRUPTIBLE" or event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" then
+        if this.endTime then
+          SetCastbarShield(this.bar, this.icon, event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE", this.isChannel)
+        end
       elseif event == "UNIT_SPELLCAST_DELAYED" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
         -- Pushback: a cast delayed later or a channel shortened. Following
         -- Quartz, re-poll just the times and accumulate the shift into a running
