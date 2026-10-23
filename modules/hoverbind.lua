@@ -161,10 +161,12 @@ pfUI:RegisterModule("hoverbind", function ()
               if arg1 == "ESCAPE" and not binding then pfUI.hoverbind:Hide() return end
               if binding then
                 if arg1 == "ESCAPE" then 
-                  -- Remove existing binding
-                  local key = (GetBindingKey(binding))
-                  if (key) then
+                  -- Remove all existing bindings
+                  local keys = { GetBindingKey(binding) }
+                  for _, key in ipairs(keys) do
                     SetBinding(key)
+                  end
+                  if keys[1] then
                     SaveBindings(GetCurrentBindingSet())
                   end
                 else 
