@@ -318,10 +318,16 @@ function pfUI.uf:UpdateVisibility()
     self._label, self._id = nil, nil
   end
 
-  local unitstr = ("%s%s"):format(self.label or "", self.id or "")
-  self.unitstr = unitstr ~= "" and unitstr or nil
-  self:SetAttribute("unit", self.unitstr)
-  local visibility = ("[target=%s,exists] show; hide"):format(unitstr)
+  -- this runs for every frame five times a second, so only touch the
+  -- attribute when the unit actually changed
+  local unitstr = (self.label or "") .. (self.id or "")
+  local unit = unitstr ~= "" and unitstr or nil
+  if unit ~= self.unitstr then
+    self.unitstr = unit
+    self:SetAttribute("unit", unit)
+  end
+  -- anything but "show"/"hide" means "show if the unit exists"
+  local visibility = "exists"
 
   -- Group frames are redundant when the group is already shown as a raid grid:
   -- either an actual raid, or a party promoted to the raid grid via
@@ -1088,7 +1094,18 @@ function pfUI.uf.OnUpdate()
         end
       else
         pfUI.uf:RefreshUnitState(this)
-        pfUI.uf:RefreshIndicators(this)
+        -- group frames get their leader/loot/raid mark icons refreshed by
+        -- events through update_indicators, so polling them is only a safety
+        -- net; frames whose unit changes without events keep polling per tick
+        local label = this.label
+        if label == "raid" or label == "party" or label == "raidpet" or label == "partypet" then
+          if (this.lastIndicatorPoll or 0) < now then
+            this.lastIndicatorPoll = now + 3
+            pfUI.uf:RefreshIndicators(this)
+          end
+        else
+          pfUI.uf:RefreshIndicators(this)
+        end
       end
 
       if this.config and this.config.glowaggro == "1" and pfUI.api.UnitHasAggro(unitstr) > 0 then
@@ -1101,9 +1118,18 @@ function pfUI.uf.OnUpdate()
         this.glow:Hide()
       end
 
-      -- update everything on eventless frames (targettarget, etc)
+      -- update eventless frames (targettarget, etc). A full refresh rescans
+      -- every aura and the portrait, so only do it when the unit behind the
+      -- frame changes or once a second; other ticks refresh the bars only.
       if this.tick then
-        pfUI.uf:RefreshUnit(this, "all")
+        local guid = UnitGUID(unitstr)
+        if guid ~= this.tickGuid or (this.tickFull or 0) < now then
+          this.tickGuid = guid
+          this.tickFull = now + 1
+          pfUI.uf:RefreshUnit(this, "all")
+        else
+          pfUI.uf:RefreshUnit(this, "base")
+        end
       end
     end
     

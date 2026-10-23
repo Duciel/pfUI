@@ -81,6 +81,9 @@ pfUI:RegisterModule("actionbar", function ()
     ["ACTIONBAR_UPDATE_COOLDOWN"] = true,
     ["ACTIONBAR_UPDATE_USABLE"] = true,
     ["ACTIONBAR_UPDATE_STATE"] = true,
+    -- fires on every ammo shot / consumable use, but only counts, equipped
+    -- state, cooldowns and usability can change from it
+    ["UNIT_INVENTORY_CHANGED"] = true,
   }
 
   -- events that are shared across all buttons
@@ -97,8 +100,6 @@ pfUI:RegisterModule("actionbar", function ()
     ["TRADE_SKILL_CLOSE"] = true,
     ["PLAYER_ENTER_COMBAT"] = true,
     ["PLAYER_LEAVE_COMBAT"] = true,
-    -- cooldown updates
-    ["UNIT_INVENTORY_CHANGED"] = true,
     -- auto repeat action
     ["START_AUTOREPEAT_SPELL"] = true,
     ["STOP_AUTOREPEAT_SPELL"] = true,
@@ -400,6 +401,28 @@ pfUI:RegisterModule("actionbar", function ()
     GameTooltip:Hide()
   end
 
+  -- item counts and equipped border, the parts of a slot an inventory change touches
+  local function ButtonInventoryUpdate(self)
+    if self.bar == 11 or self.bar == 12 then return end
+    local sid = self.id
+
+    -- update consumables
+    if IsConsumableAction(sid) then
+      self.count:SetText(GetActionCount(sid))
+    elseif IsReagentAction and IsReagentAction(sid) then
+      self.count:SetText(GetReagentCount(sid))
+    else
+      self.count:SetText(nil)
+    end
+
+    -- equipped item
+    if IsEquippedAction(sid) and C.bars.showequipped == "1" then
+      self.equipped:Show()
+    else
+      self.equipped:Hide()
+    end
+  end
+
   local start, duration, enable, castable, autocast, token
   local grid, sid, id, bar, active, texture, _
   local function ButtonSlotUpdate(self)
@@ -460,23 +483,9 @@ pfUI:RegisterModule("actionbar", function ()
       self.active:Hide()
     end
 
+    ButtonInventoryUpdate(self)
+
     if self.bar ~= 11 and self.bar ~= 12 then
-      -- update consumables
-      if IsConsumableAction(sid) then
-        self.count:SetText(GetActionCount(sid))
-      elseif IsReagentAction and IsReagentAction(sid) then
-        self.count:SetText(GetReagentCount(sid))
-      else
-        self.count:SetText(nil)
-      end
-
-      -- equipped item
-      if IsEquippedAction(sid) and C.bars.showequipped == "1" then
-        self.equipped:Show()
-      else
-        self.equipped:Hide()
-      end
-
       -- update macro text
       if C.bars["bar"..self.bar] and C.bars["bar"..self.bar].showmacro == "1" then
         self.macro:SetText(GetActionText(sid))
@@ -696,11 +705,29 @@ pfUI:RegisterModule("actionbar", function ()
       end
     end
 
+    -- The cached passes below only touch visible buttons. Hidden ones (other
+    -- pages, hidden bars) are flagged stale and get a full update once the
+    -- range pass sees them visible again.
+
+    -- run cached inventory changes (ammo, reagents, consumables)
+    if eventcache["UNIT_INVENTORY_CHANGED"] then
+      eventcache["UNIT_INVENTORY_CHANGED"] = nil
+      for id, button in pairs(buttoncache) do
+        if button:IsVisible() then
+          ButtonInventoryUpdate(button)
+          ButtonCooldownUpdate(button)
+          ButtonUsableUpdate(button)
+        else
+          button.stale = true
+        end
+      end
+    end
+
     -- run cached usable usable actions
     if eventcache["ACTIONBAR_UPDATE_USABLE"] then
       eventcache["ACTIONBAR_UPDATE_USABLE"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonUsableUpdate(button)
+        if button:IsVisible() then ButtonUsableUpdate(button) else button.stale = true end
       end
     end
 
@@ -708,7 +735,7 @@ pfUI:RegisterModule("actionbar", function ()
     if eventcache["ACTIONBAR_UPDATE_COOLDOWN"] then
       eventcache["ACTIONBAR_UPDATE_COOLDOWN"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonCooldownUpdate(button)
+        if button:IsVisible() then ButtonCooldownUpdate(button) else button.stale = true end
       end
     end
 
@@ -716,7 +743,7 @@ pfUI:RegisterModule("actionbar", function ()
     if eventcache["ACTIONBAR_UPDATE_STATE"] then
       eventcache["ACTIONBAR_UPDATE_STATE"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonIsActiveUpdate(button)
+        if button:IsVisible() then ButtonIsActiveUpdate(button) else button.stale = true end
       end
     end
 
@@ -738,7 +765,13 @@ pfUI:RegisterModule("actionbar", function ()
     if ( this.tick or .2) > GetTime() then return else this.tick = GetTime() + .2 end
 
     for id, button in pairs(buttoncache) do
-      if button:IsShown() then ButtonRangeUpdate(button) end
+      if button.stale and button:IsVisible() then
+        -- catch up on updates skipped while hidden
+        button.stale = nil
+        ButtonFullUpdate(button)
+      elseif button:IsShown() then
+        ButtonRangeUpdate(button)
+      end
     end
   end
 
