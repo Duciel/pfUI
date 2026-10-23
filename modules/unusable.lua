@@ -48,7 +48,8 @@ pfUI:RegisterModule("unusable", function ()
     for _, bag in pairs(pfUI.BACKPACK) do
       pfUI.bag.delay.UpdateBag[bag] = true
     end
-    if pfUI.bag.left:IsShown() then
+    -- the bank frame is only created on first bank visit
+    if pfUI.bag.left and pfUI.bag.left:IsShown() then
       for _, bag in pairs(pfUI.BANK) do
         pfUI.bag.delay.UpdateBag[bag] = true
       end
