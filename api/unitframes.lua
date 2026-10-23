@@ -10,10 +10,64 @@ pfUI.uf.frames = {}
 -- Scans run back to back and consume the buffer before the next refill.
 local auraSlots = {}
 
--- Separate buffer for the tooltip handlers. They run from OnEnter, which can
--- fire while RefreshUnit is showing/hiding icons under the cursor, so they must
--- not share the refresh buffer.
-local tooltipSlots = {}
+-- Aura block corner -> { icon anchor point, x direction, y direction, below frame }
+local auraCorners = {
+  TOPLEFT     = { "BOTTOMLEFT",   1,  1 },
+  BOTTOMLEFT  = { "TOPLEFT",      1, -1, true },
+  TOPRIGHT    = { "BOTTOMRIGHT", -1,  1 },
+  BOTTOMRIGHT = { "TOPRIGHT",    -1, -1, true },
+}
+
+-- Flows the shown icons of an aura block outward from the frame edge, starting
+-- `offset` away from it (its own row gap when nil): `perrow` icons per row,
+-- each row as tall as its largest icon. The first `icons.own` icons are the
+-- player's (C_UnitAuras lists them first) and use `icons.ownsize`. Returns the
+-- offset just past the block's last row, where a block sharing the same corner
+-- continues.
+local function LayoutAuraBlock(unit, icons, offset)
+  local corner = auraCorners[icons.pos]
+  local anchor = unit.config.portraitheight ~= "-1" and unit.hp or unit
+  if anchor == unit.hp and corner[4] then anchor = unit.power end
+
+  offset = offset or icons.gapy
+
+  local x, rowsize, col = 0, 0, 0
+  local i = 1
+  while icons[i] and icons[i]:IsShown() do
+    if col == icons.perrow then
+      offset = offset + rowsize + icons.gapy
+      x, rowsize, col = 0, 0, 0
+    end
+
+    local size = i <= icons.own and icons.ownsize or icons.size
+    icons[i]:SetSize(size, size)
+    icons[i]:ClearAllPoints()
+    icons[i]:SetPoint(corner[1], anchor, icons.pos, corner[2] * x, corner[3] * offset)
+
+    x = x + size + icons.gapx
+    if size > rowsize then rowsize = size end
+    col = col + 1
+    i = i + 1
+  end
+
+  if col > 0 then offset = offset + rowsize + icons.gapy end
+  return offset
+end
+
+-- Buffs and debuffs sharing a corner stack in one column: buffs first on
+-- friendly units, debuffs first on neutral and hostile ones.
+local function LayoutAuras(unit, unitstr)
+  local first, second = unit.buffs, unit.debuffs
+  if not UnitIsFriend("player", unitstr) then first, second = second, first end
+
+  if not first then first, second = second, nil end
+  if not first then return end
+
+  local offset = LayoutAuraBlock(unit, first)
+  if second then
+    LayoutAuraBlock(unit, second, second.pos == first.pos and offset or nil)
+  end
+end
 
 -- ============================================================================
 -- GUID-based Roster Tracking for Smart Updates
@@ -115,32 +169,8 @@ local function DebuffOnEnter()
   local unitstr = this:GetParent().label .. this:GetParent().id
   GameTooltip:SetOwner(this, "ANCHOR_BOTTOMRIGHT")
 
-  if this:GetParent().label ~= "player" then
-    local parent = this:GetParent()
-
-    -- selfdebuff filters the displayed list to player-cast harmful auras, but
-    -- SetUnitAura's index has to be into the unfiltered HARMFUL list. Look up
-    -- the displayed aura via the PLAYER filter, then find its position in the
-    -- unfiltered list by name + sourceGUID.
-    --
-    -- The unfiltered list is NOT capped at 16: once a unit's 16 debuff slots
-    -- are full the server parks further debuffs in buff slots, and C_UnitAuras
-    -- reports those as harmful too. So enumerate however many the unit has.
-    if parent.config and parent.config.selfdebuff == "1" then
-      local ownAura = C_UnitAuras.GetAuraDataByIndex(unitstr, this.id, "HARMFUL|PLAYER")
-      if ownAura then
-        local n = ScanAuraSlots(unitstr, "HARMFUL", tooltipSlots)
-        for i = 1, n do
-          local check = C_UnitAuras.GetAuraDataBySlot(unitstr, tooltipSlots[i])
-          if check and check.name == ownAura.name and check.sourceGUID == ownAura.sourceGUID then
-            GameTooltip:SetUnitAura(unitstr, i, "HARMFUL")
-            return
-          end
-        end
-      end
-    end
-  end
-
+  -- C_UnitAuras lists the player's own auras first, so the selfdebuff
+  -- (HARMFUL|PLAYER) list is a prefix of the HARMFUL list: same index.
   GameTooltip:SetUnitAura(unitstr, this.id, "HARMFUL")
 end
 
@@ -400,6 +430,8 @@ function pfUI.uf:UpdateConfig()
   local C = pfUI_config
   local rawborder, default_border = GetBorderSize("unitframes")
   local spacing = f.config.pspace * GetPerfectPixel()
+  -- aura icon backdrops sit outside the icon, so gaps clear both borders
+  local aura_border = (C.appearance.border.force_blizz == "1" and 1 or 2) * default_border
 
   local cooldown_text = tonumber(f.config.cooldown_text)
   local cooldown_anim = tonumber(f.config.cooldown_anim)
@@ -731,12 +763,16 @@ function pfUI.uf:UpdateConfig()
     f.buffs = nil
   else
     f.buffs = f.buffs or {}
+    f.buffs.pos = f.config.buffs
+    f.buffs.size = tonumber(f.config.buffsize)
+    f.buffs.ownsize = f.config.ownbuffsize == "-1" and f.buffs.size or tonumber(f.config.ownbuffsize)
+    f.buffs.perrow = tonumber(f.config.buffperrow)
+    f.buffs.gapx = aura_border + tonumber(f.config.buffspacingx)
+    f.buffs.gapy = aura_border + tonumber(f.config.buffspacingy)
+    f.buffs.own = 0
 
     for i=1, 32 do
       if i > tonumber(f.config.bufflimit) then break end
-
-      local perrow = f.config.buffperrow
-      local row = floor((i-1) / perrow)
 
       f.buffs[i] = f.buffs[i] or CreateFrame("Button", "pfUI" .. f.fname .. "Buff" .. i, f)
       f.buffs[i].texture = f.buffs[i].texture or f.buffs[i]:CreateTexture()
@@ -752,38 +788,7 @@ function pfUI.uf:UpdateConfig()
 
       f.buffs[i]:SetFrameLevel(12)
       f.buffs[i]:RegisterForClicks("RightButtonUp")
-      f.buffs[i]:ClearAllPoints()
 
-      local invert_h, invert_v, af
-      if f.config.buffs == "TOPLEFT" then
-        invert_h = 1
-        invert_v = 1
-        af = "BOTTOMLEFT"
-      elseif f.config.buffs == "BOTTOMLEFT" then
-        invert_h = -1
-        invert_v = 1
-        af = "TOPLEFT"
-      elseif f.config.buffs == "TOPRIGHT" then
-        invert_h = 1
-        invert_v = -1
-        af = "BOTTOMRIGHT"
-      elseif f.config.buffs == "BOTTOMRIGHT" then
-        invert_h = -1
-        invert_v = -1
-        af = "TOPRIGHT"
-      end
-
-      local anchor = f.config.portraitheight ~= "-1" and f.hp or f
-      if anchor == f.hp and (f.config.buffs == "BOTTOMLEFT" or f.config.buffs == "BOTTOMRIGHT") then
-        anchor = f.power
-      end
-      local multiply = C.appearance.border.force_blizz == "1" and 1 or 2
-      f.buffs[i]:SetPoint(af, anchor, f.config.buffs,
-      invert_v * (i-1-row*perrow)*(multiply*default_border + f.config.buffsize + 1),
-      invert_h * (row*(multiply*default_border + f.config.buffsize + 1) + (multiply*default_border + 1)))
-
-      f.buffs[i]:SetSize(f.config.buffsize, f.config.buffsize)
-      
       f.buffs[i].cd = f.buffs[i].cd or CreateFrame("Cooldown", f.buffs[i]:GetName() .. "Cooldown", f.buffs[i], "CooldownFrameTemplate")
       f.buffs[i].cd:SetFrameLevel(14)
       f.buffs[i].cd.pfCooldownType = "ALL"
@@ -817,6 +822,13 @@ function pfUI.uf:UpdateConfig()
     f.debuffs = nil
   else
     f.debuffs = f.debuffs or {}
+    f.debuffs.pos = f.config.debuffs
+    f.debuffs.size = tonumber(f.config.debuffsize)
+    f.debuffs.ownsize = f.config.owndebuffsize == "-1" and f.debuffs.size or tonumber(f.config.owndebuffsize)
+    f.debuffs.perrow = tonumber(f.config.debuffperrow)
+    f.debuffs.gapx = aura_border + tonumber(f.config.debuffspacingx)
+    f.debuffs.gapy = aura_border + tonumber(f.config.debuffspacingy)
+    f.debuffs.own = 0
 
     for i=1, 32 do
       if i > tonumber(f.config.debufflimit) then break end
@@ -835,8 +847,6 @@ function pfUI.uf:UpdateConfig()
 
       f.debuffs[i]:SetFrameLevel(12)
       f.debuffs[i]:RegisterForClicks("RightButtonUp")
-      f.debuffs[i]:ClearAllPoints()
-      f.debuffs[i]:SetSize(f.config.debuffsize, f.config.debuffsize)
       f.debuffs[i]:SetNormalTexture(nil)
       
       f.debuffs[i].cd = f.debuffs[i].cd or CreateFrame("Cooldown", f.debuffs[i]:GetName() .. "Cooldown", f.debuffs[i], "CooldownFrameTemplate")
@@ -1732,46 +1742,17 @@ function pfUI.uf:RefreshUnit(unit, component)
         unit.buffs[i]:Hide()
       end
     end
+
+    -- own buffs lead the list; count them only when they're drawn larger
+    if unit.buffs.ownsize ~= unit.buffs.size then
+      unit.buffs.own = ScanAuraSlots(unitstr, "HELPFUL|PLAYER", auraSlots, unit.config.bufflimit)
+    end
   end
 
   -- debuffs
   if unit.debuffs and ( component == "all" or component == "aura" ) then
     local texture, stacks, dtype
-    local perrow = unit.config.debuffperrow
-    local bperrow = unit.config.buffperrow
     local selfdebuff = unit.config.selfdebuff
-
-    local invert_h, invert_v, af
-    if unit.config.debuffs == "TOPLEFT" then
-      invert_h = 1
-      invert_v = 1
-      af = "BOTTOMLEFT"
-    elseif unit.config.debuffs == "BOTTOMLEFT" then
-      invert_h = -1
-      invert_v = 1
-      af = "TOPLEFT"
-    elseif unit.config.debuffs == "TOPRIGHT" then
-      invert_h = 1
-      invert_v = -1
-      af = "BOTTOMRIGHT"
-    elseif unit.config.debuffs == "BOTTOMRIGHT" then
-      invert_h = -1
-      invert_v = -1
-      af = "TOPRIGHT"
-    end
-
-    local buffrow, reposition = 0, ( component == "all" and true or nil )
-    if unit.config.buffs == unit.config.debuffs then
-      if unit.buffs[0*bperrow+1] and unit.buffs[0*bperrow+1]:IsShown() then buffrow = buffrow + 1 end
-      if unit.buffs[1*bperrow+1] and unit.buffs[1*bperrow+1]:IsShown() then buffrow = buffrow + 1 end
-      if unit.buffs[2*bperrow+1] and unit.buffs[2*bperrow+1]:IsShown() then buffrow = buffrow + 1 end
-      if unit.buffs[3*bperrow+1] and unit.buffs[3*bperrow+1]:IsShown() then buffrow = buffrow + 1 end
-    end
-
-    if buffrow ~= unit.lastbuffrow then
-      unit.lastbuffrow = buffrow
-      reposition = true
-    end
 
     -- selfdebuff narrows to player-cast harmful auras via the PLAYER filter.
     -- Player-frame debuffs aren't gated on it (it'd hide most party-applied
@@ -1782,19 +1763,6 @@ function pfUI.uf:RefreshUnit(unit, component)
 
     for i=1, unit.config.debufflimit do
       if not unit.debuffs[i] then break end
-
-      local row = floor((i-1) / unit.config.debuffperrow)
-
-      if reposition then
-        local anchor = unit.config.portraitheight ~= "-1" and unit.hp or unit
-        if anchor == unit.hp and (unit.config.debuffs == "BOTTOMLEFT" or unit.config.debuffs == "BOTTOMRIGHT") then
-          anchor = unit.power
-        end
-        local multiply = C.appearance.border.force_blizz == "1" and 1 or 2
-        unit.debuffs[i]:SetPoint(af, anchor, unit.config.debuffs,
-        invert_v * (i-1-row*perrow)*(multiply*default_border + unit.config.debuffsize + 1),
-        invert_h * ((row+buffrow)*(multiply*default_border + unit.config.debuffsize + 1) + (multiply*default_border + 1)))
-      end
 
       -- positional read by slot id allocates nothing
       local name, icon, count, dispelType, duration, expirationTime = C_UnitAuras.UnitAuraBySlot(unitstr, auraSlots[i])
@@ -1840,6 +1808,15 @@ function pfUI.uf:RefreshUnit(unit, component)
         unit.debuffs[i]:Hide()
       end
     end
+
+    -- own debuffs lead the list; count them only when they're drawn larger
+    if unit.debuffs.ownsize ~= unit.debuffs.size then
+      unit.debuffs.own = ScanAuraSlots(unitstr, "HARMFUL|PLAYER", auraSlots, unit.config.debufflimit)
+    end
+  end
+
+  if component == "all" or component == "aura" then
+    LayoutAuras(unit, unitstr)
   end
 
   -- indicators

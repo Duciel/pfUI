@@ -2348,12 +2348,18 @@ pfUI:RegisterModule("gui", function ()
         CreateConfig(U[c], T["Buff Size"], C.unitframes[c], "buffsize")
         CreateConfig(U[c], T["Buff Limit"], C.unitframes[c], "bufflimit")
         CreateConfig(U[c], T["Buffs Per Row"], C.unitframes[c], "buffperrow")
+        CreateConfig(U[c], T["Own Buff Size"], C.unitframes[c], "ownbuffsize")
+        CreateConfig(U[c], T["Buff X-Spacing"], C.unitframes[c], "buffspacingx")
+        CreateConfig(U[c], T["Buff Y-Spacing"], C.unitframes[c], "buffspacingy")
 
         CreateConfig(U[c], T["Debuffs"], nil, nil, "header")
         CreateConfig(U[c], T["Debuff Position"], C.unitframes[c], "debuffs", "dropdown", pfUI.gui.dropdowns.uf_buff_position)
         CreateConfig(U[c], T["Debuff Size"], C.unitframes[c], "debuffsize")
         CreateConfig(U[c], T["Debuff Limit"], C.unitframes[c], "debufflimit")
         CreateConfig(U[c], T["Debuffs Per Row"], C.unitframes[c], "debuffperrow")
+        CreateConfig(U[c], T["Own Debuff Size"], C.unitframes[c], "owndebuffsize")
+        CreateConfig(U[c], T["Debuff X-Spacing"], C.unitframes[c], "debuffspacingx")
+        CreateConfig(U[c], T["Debuff Y-Spacing"], C.unitframes[c], "debuffspacingy")
 
         if c ~= "player" then
         end
