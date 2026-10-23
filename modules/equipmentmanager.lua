@@ -176,8 +176,8 @@ pfUI:RegisterModule("equipmentmanager", function()
   rowMenu:RegisterEvent("GLOBAL_MOUSE_DOWN")
   rowMenu:SetScript("OnEvent", function()
     if not this:IsShown() then return end
-    if MouseIsOver(this) then return end
-    if this.anchorBtn and MouseIsOver(this.anchorBtn) then return end
+    if MouseIsOverHitRect(this) then return end
+    if this.anchorBtn and MouseIsOverHitRect(this.anchorBtn) then return end
     this:Hide()
   end)
   tinsert(UISpecialFrames, "pfEqMgrRowMenu")  -- Escape closes it
@@ -313,10 +313,10 @@ pfUI:RegisterModule("equipmentmanager", function()
 
     -- Show the gear and tooltip while the cursor is over the row or its
     -- gear child. The gear sits inside the row's rectangle, so a single
-    -- MouseIsOver(row) check covers both. OnLeave on the row and the gear
-    -- catches every exit path, so no OnUpdate poll is needed.
+    -- MouseIsOverHitRect(row) check covers both. OnLeave on the row and the
+    -- gear catches every exit path, so no OnUpdate poll is needed.
     local function HideRowHover()
-      if MouseIsOver(row) then return end
+      if MouseIsOverHitRect(row) then return end
       GameTooltip:Hide()
       row.gear:Hide()
     end

@@ -317,7 +317,7 @@ pfUI:RegisterModule("actionbar", function ()
     -- handle button highlight
     if keystate == "down" then
       self.highlight:Show()
-    elseif not MouseIsOver(self) then
+    elseif not MouseIsOverHitRect(self) then
       self.highlight:Hide()
     end
   end

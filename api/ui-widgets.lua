@@ -661,7 +661,7 @@ function pfUI.api.SkinButton(button, cr, cg, cb, icon, disableHighlight)
   end
 
   b.UnlockHighlight = function()
-    if not MouseIsOver(b) then
+    if not MouseIsOverHitRect(b) then
       b:SetBackdropBorderColor(GetStringColor(pfUI_config.appearance.border.color))
     end
     b.locked = false
@@ -1175,7 +1175,7 @@ function pfUI.api.CreateInfoBox(text, time, parent, height)
 
       if GetTime() > infobox.lastshow + infobox.duration then
         if not infobox.fade:IsPlaying() then infobox.fade:Play() end
-      elseif MouseIsOver(this) then
+      elseif MouseIsOverHitRect(this) then
         this:SetAlpha(max(0.4, this:GetAlpha() - .1))
       else
         this:SetAlpha(min(1, this:GetAlpha() + .1))

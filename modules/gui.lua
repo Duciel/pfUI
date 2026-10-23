@@ -58,10 +58,11 @@ pfUI:RegisterModule("gui", function ()
         return
       end
 
-      if MouseIsOver(this) and not this.over then
+      local over = MouseIsOverHitRect(this)
+      if over and not this.over then
         this.tex:Show()
         this.over = true
-      elseif not MouseIsOver(this) and this.over then
+      elseif not over and this.over then
         this.tex:Hide()
         this.over = nil
       end

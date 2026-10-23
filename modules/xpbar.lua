@@ -191,7 +191,7 @@ end
     local self = self or this
 
     if self.text_mouse == "1" then
-      self.bar.text:SetShown(MouseIsOver(self))
+      self.bar.text:SetShown(self.hover)
     end
 
     if self.always then return end

@@ -1543,6 +1543,18 @@ function pfUI.api.BarButtonAnchor(button,basename,buttonindex,barsize,formfactor
   return button._anchor
 end
 
+-- [ MouseIsOverHitRect ] --
+-- Like MouseIsOver, but tests the frame's hit rect, the area the engine
+-- uses for mouse focus and OnEnter/OnLeave. CreateBackdrop widens that
+-- rect by the border, so plain MouseIsOver misses a band around the frame.
+-- 'frame'      the frame to test
+-- return       true when the cursor is inside the frame's hit rect
+function pfUI.api.MouseIsOverHitRect(frame)
+  if not frame.GetHitRectInsets then return MouseIsOver(frame) end
+  local left, right, top, bottom = frame:GetHitRectInsets()
+  return MouseIsOver(frame, -top, bottom, left, -right)
+end
+
 -- [ Enable Autohide ] --
 -- 'frame'  the frame that should be hidden
 function pfUI.api.EnableAutohide(frame, timeout, combat)
