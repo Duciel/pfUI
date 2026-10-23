@@ -828,17 +828,28 @@ pfUI:RegisterModule("actionbar", function ()
   do
     local formpage, shift, ctrl, alt, default = 8, 6, 5, 3, 1
 
-    -- set temporary pagemaster bindings keybinds
-    if C.bars.pagemaster == "1" then
-      local modifier = { "ALT", "SHIFT", "CTRL" }
-      local buttons = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "+", "=", "´" }
-      local current = CURRENT_ACTIONBAR_PAGE
-      bars.pagemaster = bars.pagemaster or CreateFrame("Frame", "pfPageMaster", UIParent)
-      bars.pagemaster:RegisterEvent("PLAYER_ENTERING_WORLD")
-      bars.pagemaster:SetScript("OnEvent", function()
-        for _,mod in pairs(modifier) do
-          for _,but in pairs(buttons) do
-            SetBinding(mod.."-"..but)
+    -- while a page modifier is held, MOD-key must run the main bar binding on
+    -- that key so the switched page fires. Overrides do this without touching
+    -- the saved binding set.
+    local pagemods = {}
+    if C.bars.pagemasteralt == "1" then table.insert(pagemods, "ALT") end
+    if C.bars.pagemasterctrl == "1" then table.insert(pagemods, "CTRL") end
+    if C.bars.pagemastershift == "1" then table.insert(pagemods, "SHIFT") end
+
+    if table.getn(pagemods) > 0 then
+      local pagemaster = CreateFrame("Frame", "pfPageMaster", UIParent)
+      pagemaster:RegisterEvent("PLAYER_ENTERING_WORLD")
+      pagemaster:RegisterEvent("UPDATE_BINDINGS")
+      pagemaster:SetScript("OnEvent", function()
+        ClearOverrideBindings(this)
+        for i = 1, 12 do
+          for _, key in ipairs({ GetBindingKey("ACTIONBUTTON"..i) }) do
+            -- skip keys that already carry a modifier, e.g. "SHIFT-Q"
+            if not key:find("^%u+%-.") then
+              for _, mod in ipairs(pagemods) do
+                SetOverrideBinding(this, false, mod.."-"..key, "ACTIONBUTTON"..i)
+              end
+            end
           end
         end
       end)

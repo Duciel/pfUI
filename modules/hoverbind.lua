@@ -105,6 +105,10 @@ pfUI:RegisterModule("hoverbind", function ()
     end
   end
 
+  local function BindingName(command)
+    return _G["BINDING_NAME_" .. command] or command
+  end
+
   function pfUI.hoverbind:GetPrefix()
     return string.format("%s%s%s",
       (IsAltKeyDown() and modifiers.ALT or ""),
@@ -165,9 +169,19 @@ pfUI:RegisterModule("hoverbind", function ()
                   end
                 else 
                   -- Create new binding
-                  local key = map and map[arg1] or arg1
-                  if (SetBinding(prefix..key, binding)) then
+                  local key = prefix .. (map and map[arg1] or arg1)
+                  local previous = GetBindingAction(key)
+                  if (SetBinding(key, binding)) then
                     SaveBindings(GetCurrentBindingSet())
+
+                    if previous and previous ~= "" and previous ~= binding then
+                      DEFAULT_CHAT_FRAME:AddMessage("|cff33ffcc" .. key .. "|r " .. T["was unbound from"] .. " " .. BindingName(previous))
+                    end
+
+                    local active = GetBindingAction(key, true)
+                    if active ~= binding then
+                      DEFAULT_CHAT_FRAME:AddMessage("|cff33ffcc" .. key .. "|r " .. T["is currently overridden by"] .. " " .. BindingName(active))
+                    end
                   end
                 end
               end
