@@ -200,7 +200,6 @@ pfUI_translation["zhCN"] = {
   ["Description Font"] = "描述字体",
   ["Description Font Size"] = "描述字体大小",
   ["Detailed Random Roll Announcement"] = "通告详细随机Roll点",
-  ["Detect Enemy Buffs"] = "探测敌方Buffs",
   ["Disable"] = "禁用",
   ["Disable Blizzard Castbar"] = "隐藏暴雪施法条",
   ["Disabled"] = "不显示",

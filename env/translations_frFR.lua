@@ -200,7 +200,6 @@ pfUI_translation["frFR"] = {
   ["Description Font"] = "Description de la Police",
   ["Description Font Size"] = "Description de la taille de la Police",
   ["Detailed Random Roll Announcement"] = "Annonce détaillée des Rolls aléatoires",
-  ["Detect Enemy Buffs"] = nil,
   ["Disable"] = "Désactiver",
   ["Disable Blizzard Castbar"] = "Désactiver la barre d'incantation d'origine",
   ["Disabled"] = "Désactivé",

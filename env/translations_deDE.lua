@@ -200,7 +200,6 @@ pfUI_translation["deDE"] = {
   ["Description Font"] = nil,
   ["Description Font Size"] = nil,
   ["Detailed Random Roll Announcement"] = nil,
-  ["Detect Enemy Buffs"] = nil,
   ["Disable"] = nil,
   ["Disable Blizzard Castbar"] = nil,
   ["Disabled"] = nil,

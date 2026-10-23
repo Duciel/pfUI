@@ -200,7 +200,6 @@ pfUI_translation["zhTW"] = {
   ["Description Font"] = nil,
   ["Description Font Size"] = nil,
   ["Detailed Random Roll Announcement"] = "通告詳細隨機Roll點",
-  ["Detect Enemy Buffs"] = nil,
   ["Disable"] = "禁用",
   ["Disable Blizzard Castbar"] = "隱藏暴雪施法條",
   ["Disabled"] = "不顯示",

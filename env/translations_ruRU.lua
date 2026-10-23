@@ -200,7 +200,6 @@ pfUI_translation["ruRU"] = {
   ["Description Font"] = "Шрифт описания",
   ["Description Font Size"] = "Размер шрифта описания",
   ["Detailed Random Roll Announcement"] = "Подробное объявление о случайном броске",
-  ["Detect Enemy Buffs"] = nil,
   ["Disable"] = "Отключить",
   ["Disable Blizzard Castbar"] = "Отключить панель применения Blizzard",
   ["Disabled"] = "Отключено",

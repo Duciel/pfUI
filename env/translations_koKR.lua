@@ -200,7 +200,6 @@ pfUI_translation["koKR"] = {
   ["Description Font"] = nil,
   ["Description Font Size"] = nil,
   ["Detailed Random Roll Announcement"] = nil,
-  ["Detect Enemy Buffs"] = nil,
   ["Disable"] = "가리기",
   ["Disable Blizzard Castbar"] = "블리자드 캐스트바 사용 중지",
   ["Disabled"] = "가리기",

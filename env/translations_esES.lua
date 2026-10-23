@@ -200,7 +200,6 @@ pfUI_translation["esES"] = {
   ["Description Font"] = "Fuente de descripción",
   ["Description Font Size"] = "Tamaño de la fuente de descripción",
   ["Detailed Random Roll Announcement"] = "Anuncio detallado para tirar los dados aleatoriamente",
-  ["Detect Enemy Buffs"] = nil,
   ["Disable"] = "Desactivar",
   ["Disable Blizzard Castbar"] = "Desactivar la barra de lanzamiento de Blizzard",
   ["Disabled"] = "Desactivado",
