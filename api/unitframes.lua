@@ -897,32 +897,6 @@ function pfUI.uf.OnShow()
   pfUI.uf:RefreshUnit(this, "base")
 end
 
--- GUID-keyed aura start-time tracker, fed by Nampower's BUFF_ADDED_OTHER /
--- BUFF_REMOVED_OTHER. Non-player units have aura.expirationTime == 0 (server
--- doesn't broadcast time), so we reconstruct the swirl from "when we saw it
--- applied" + aura.duration (Spell.dbc base). Only auras we actually witnessed
--- being cast get tracked — pre-existing auras (already on a unit when you
--- target them) intentionally show no timer rather than a fabricated one.
-pfUI.uf.aura_starts = {}  -- {[guid] = {[spellId] = startTime}}
-
-local auraTracker = CreateFrame("Frame", "pfUF_AuraTracker", UIParent)
-auraTracker:RegisterEvent("BUFF_ADDED_OTHER")
-auraTracker:RegisterEvent("BUFF_REMOVED_OTHER")
-auraTracker:SetScript("OnEvent", function()
-  -- Nampower arg layout: arg1=guid, arg3=spellId. State code 0=added, 1=removed,
-  -- 2=modified; we treat any added/modified as "reset start = now" and let the
-  -- REMOVED event clear the entry.
-  if not arg1 or not arg3 or arg3 == 0 then return end
-  if event == "BUFF_REMOVED_OTHER" then
-    if pfUI.uf.aura_starts[arg1] then
-      pfUI.uf.aura_starts[arg1][arg3] = nil
-    end
-  else
-    pfUI.uf.aura_starts[arg1] = pfUI.uf.aura_starts[arg1] or {}
-    pfUI.uf.aura_starts[arg1][arg3] = GetTime()
-  end
-end)
-
 function pfUI.uf.OnEvent()
   -- Handle shutdown to prevent crash 132
   if event == "PLAYER_LOGOUT" then
@@ -1749,15 +1723,6 @@ function pfUI.uf:RefreshUnit(unit, component)
           end
           if dur > 0 then
             CooldownFrame_SetTimer(unit.buffs[i].cd, start, dur, 1)
-          else
-            CooldownFrame_SetTimer(unit.buffs[i].cd, 0, 0, 0)
-          end
-        elseif duration > 0 then
-          local guid = UnitGUID(unitstr)
-          local guidStarts = guid and pfUI.uf.aura_starts[guid]
-          local start = guidStarts and guidStarts[spellId]
-          if start then
-            CooldownFrame_SetTimer(unit.buffs[i].cd, start, duration, 1)
           else
             CooldownFrame_SetTimer(unit.buffs[i].cd, 0, 0, 0)
           end

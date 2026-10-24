@@ -897,6 +897,10 @@ pfUI:RegisterModule("actionbar", function ()
     pageswitch:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
     pageswitch:RegisterEvent("PLAYER_AURAS_CHANGED")
     pageswitch:RegisterEvent("PLAYER_LOGOUT")
+    local PROWL_IDS = { [5215] = true, [6783] = true, [9913] = true }
+    if class == "DRUID" then
+      pageswitch:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    end
     pageswitch:SetScript("OnEvent", function()
       if event == "PLAYER_LOGOUT" then
         this:UnregisterAllEvents()
@@ -916,6 +920,18 @@ pfUI:RegisterModule("actionbar", function ()
 
       if event == "PLAYER_ENTERING_WORLD" then
         formpaging = FullScan()
+        return
+      end
+
+      -- Eager prowl detection on the cast itself — zero-latency vs.
+      -- PLAYER_AURAS_CHANGED, which can land a frame or two behind it.
+      -- arg3 = spellID
+      if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        if PROWL_IDS[arg3] then
+          inCatForm = true
+          prowlActive = true
+          formpaging = true
+        end
         return
       end
 
@@ -942,20 +958,6 @@ pfUI:RegisterModule("actionbar", function ()
       end
     end)
 
-    -- Eager prowl detection via Nampower SPELL_GO_SELF — zero-latency vs.
-    -- PLAYER_AURAS_CHANGED, which can land a frame or two behind the cast.
-    -- Form changes are no longer hooked here; UPDATE_SHAPESHIFT_FORM covers
-    -- those without needing a per-spellID watchlist.
-    local PROWL_IDS = { [5215] = true, [6783] = true, [9913] = true }
-    pfUI.libdebuff_spell_go_hooks = pfUI.libdebuff_spell_go_hooks or {}
-    pfUI.libdebuff_spell_go_hooks["actionbar_prowl"] = function(spellId)
-      if class ~= "DRUID" then return end
-      if PROWL_IDS[spellId] then
-        inCatForm = true
-        prowlActive = true
-        formpaging = true
-      end
-    end
     pageswitch:SetScript("OnUpdate", function()
       -- switch actionbar page depending on meta key that is pressed
       if C.bars.pagemastershift == "1" and IsShiftKeyDown() then

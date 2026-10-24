@@ -635,25 +635,6 @@ pfUI:RegisterModule("swingtimer", function ()
     end
   end)
 
-  -- SPELL_GO hook via libdebuff: an on-next-swing ability (HS / Cleave /
-  -- Maul) resolving consumes the queue, so drop the queued color.
-  pfUI.libdebuff_spell_go_hooks = pfUI.libdebuff_spell_go_hooks or {}
-  pfUI.libdebuff_spell_go_hooks["swingtimer"] = function(spellId)
-    if IsOnSwingSpell(spellId) then
-      S.hsQueued = false; S.cleaveQueued = false; S.maulQueued = false
-    end
-  end
-
-  -- SPELL_CAST_EVENT hook: HS/Cleave/Maul queue tracking
-  pfUI.libdebuff_spell_cast_hooks = pfUI.libdebuff_spell_cast_hooks or {}
-  pfUI.libdebuff_spell_cast_hooks["swingtimer"] = function(success, spellId)
-    local kind = ClassifyOnSwingSpell(spellId)
-    if not kind then return end
-    S.useSpellQueueEvent = true
-    SetQueuedKind(kind)
-  end
-
-
   local events = CreateFrame("Frame")
   events:RegisterEvent("PLAYER_SWING")
   events:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -661,7 +642,9 @@ pfUI:RegisterModule("swingtimer", function ()
   events:RegisterEvent("PLAYER_REGEN_DISABLED")
   events:RegisterEvent("PLAYER_REGEN_ENABLED")
   events:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
-  events:RegisterUnitEvent("UNIT_DIED", UnitGUID("player"))
+  events:RegisterEvent("PLAYER_DEAD")
+  events:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
+  events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
   events:RegisterEvent("SPELL_QUEUE_EVENT")
   events:RegisterEvent("START_AUTOATTACK")
   events:RegisterEvent("STOP_AUTOATTACK")
@@ -677,6 +660,21 @@ pfUI:RegisterModule("swingtimer", function ()
         StartOH(arg1)
       elseif arg2 == Enum.PlayerSwingType.Ranged then
         StartRanged(arg1)
+      end
+
+    elseif event == "UNIT_SPELLCAST_SENT" then
+      -- arg4 = spellID: an on-next-swing ability (HS / Cleave / Maul) queued
+      local kind = ClassifyOnSwingSpell(arg4)
+      if kind then
+        S.useSpellQueueEvent = true
+        SetQueuedKind(kind)
+      end
+
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+      -- arg3 = spellID: the on-next-swing ability resolved, which consumes
+      -- the queue, so drop the queued color
+      if IsOnSwingSpell(arg3) then
+        S.hsQueued = false; S.cleaveQueued = false; S.maulQueued = false
       end
 
     elseif event == "SPELL_QUEUE_EVENT" then
@@ -728,10 +726,8 @@ pfUI:RegisterModule("swingtimer", function ()
       S.cleaveQueued = false
       S.maulQueued   = false
 
-    elseif event == "UNIT_DIED" then
-      if IsPlayerGuid(arg1) then
-        ResetAll()
-      end
+    elseif event == "PLAYER_DEAD" then
+      ResetAll()
     end
   end)
 
