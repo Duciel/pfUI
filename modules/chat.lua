@@ -843,8 +843,11 @@ pfUI:RegisterModule("chat", function ()
           end
           if class and class ~= UNKNOWN then
             color = "|c" .. PFUI_CLASS_COLORS[class].colorStr
-            if C.chat.text.playericons == "1" then
-              icon = GetFactionIcon(raceKey) .. GetRaceIcon(raceKey, sex)
+            if C.chat.text.factionicons == "1" then
+              icon = GetFactionIcon(raceKey)
+            end
+            if C.chat.text.raceicons == "1" then
+              icon = icon .. GetRaceIcon(raceKey, sex)
             end
           elseif C.chat.text.tintunknown == "1" then
             color = unknowncolorhex

@@ -293,14 +293,6 @@ function pfUI.api.GetFactionIcon(raceKey)
   return FACTION_ICON[info.faction] or ""
 end
 
--- [ GetPlayerRaceIcons ]
--- Returns the faction and race emblems of the player character.
--- return:      [string]        both inline textures, or an empty string
-function pfUI.api.GetPlayerRaceIcons()
-  local _, raceKey = UnitRace("player")
-  return pfUI.api.GetFactionIcon(raceKey) .. pfUI.api.GetRaceIcon(raceKey, UnitSex("player"))
-end
-
 -- [ strvertical ]
 -- Creates vertical text using linebreaks. Multibyte char friendly.
 -- 'str'        [string]        String to columnize.
