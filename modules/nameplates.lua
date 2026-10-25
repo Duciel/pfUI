@@ -524,9 +524,11 @@ nameplates:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "target", "focu
       end
       -- The plates hold their own unit subscriptions now, so silencing this
       -- frame alone would leave them dispatching through logout -- exactly what
-      -- this branch exists to prevent.
+      -- this branch exists to prevent. Leaving the world destroys the units
+      -- before PLAYER_LOGOUT fires, and a destroyed plate already dropped its
+      -- events and lost its methods, so only the live ones need silencing.
       for plate in pairs(registry) do
-        if plate.nameplate then
+        if plate.nameplate and plate.nameplate.UnregisterAllEvents then
           plate.nameplate:UnregisterAllEvents()
           plate.nameplate:SetScript("OnEvent", nil)
         end
