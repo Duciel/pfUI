@@ -69,6 +69,35 @@ local function LayoutAuras(unit, unitstr)
   end
 end
 
+-- Returns the cooldown start and duration of an aura, 0, 0 when it has none.
+-- Start is capped to now: talent-extended auras run past their Spell.dbc base
+-- duration, and a start in the future trips the cooldown text's 2^32
+-- wraparound branch.
+local function AuraTimer(duration, expirationTime)
+  if expirationTime <= 0 then return 0, 0 end
+
+  local now = GetTime()
+  local start, dur = expirationTime - duration, duration
+  if start > now or dur <= 0 then
+    start, dur = now, expirationTime - now
+  end
+
+  if dur <= 0 then return 0, 0 end
+  return start, dur
+end
+
+-- Starts the timers RefreshUnit stored on the shown icons of an aura block.
+local function StartAuraTimers(icons)
+  if not icons then return end
+
+  local i = 1
+  while icons[i] and icons[i]:IsShown() do
+    local dur = icons[i].auraDuration
+    CooldownFrame_SetTimer(icons[i].cd, icons[i].auraStart, dur, dur > 0 and 1 or 0)
+    i = i + 1
+  end
+end
+
 -- ============================================================================
 -- GUID-based Roster Tracking for Smart Updates
 -- Only updates frames where the unit actually changed, not ALL 40 frames
@@ -1711,24 +1740,7 @@ function pfUI.uf:RefreshUnit(unit, component)
           unit.buffs[i].stacks:SetText("")
         end
 
-        if expirationTime > 0 then
-          -- pfUI's cooldown text falls into a 2^32 wraparound branch when start > GetTime(),
-          -- which happens for talent-extended buffs where the real duration exceeds the
-          -- Spell.dbc base. Anchor start to now in that case to keep the remaining math sane.
-          local now = GetTime()
-          local start = expirationTime - duration
-          local dur = duration
-          if start > now or dur <= 0 then
-            start, dur = now, expirationTime - now
-          end
-          if dur > 0 then
-            CooldownFrame_SetTimer(unit.buffs[i].cd, start, dur, 1)
-          else
-            CooldownFrame_SetTimer(unit.buffs[i].cd, 0, 0, 0)
-          end
-        else
-          CooldownFrame_SetTimer(unit.buffs[i].cd, 0, 0, 0)
-        end
+        unit.buffs[i].auraStart, unit.buffs[i].auraDuration = AuraTimer(duration, expirationTime)
       else
         unit.buffs[i]:Hide()
       end
@@ -1771,24 +1783,7 @@ function pfUI.uf:RefreshUnit(unit, component)
       if texture then
         unit.debuffs[i]:Show()
 
-        if expirationTime > 0 then
-          -- Cap start to now so talent-extended debuffs (expirationTime past
-          -- the dbc base duration) don't push start into the future and trip
-          -- CooldownFrame_SetTimer's 2^32-wraparound branch.
-          local now = GetTime()
-          local start = expirationTime - duration
-          local dur = duration
-          if start > now or dur <= 0 then
-            start, dur = now, expirationTime - now
-          end
-          if dur > 0 then
-            CooldownFrame_SetTimer(unit.debuffs[i].cd, start, dur, 1)
-          else
-            CooldownFrame_SetTimer(unit.debuffs[i].cd, 0, 0, 0)
-          end
-        else
-          CooldownFrame_SetTimer(unit.debuffs[i].cd, 0, 0, 0)
-        end
+        unit.debuffs[i].auraStart, unit.debuffs[i].auraDuration = AuraTimer(duration, expirationTime)
 
         if stacks > 1 then
           unit.debuffs[i].stacks:SetText(stacks)
@@ -1806,8 +1801,11 @@ function pfUI.uf:RefreshUnit(unit, component)
     end
   end
 
+  -- timers start after the layout so each cooldown text is sized to its icon
   if component == "all" or component == "aura" then
     LayoutAuras(unit, unitstr)
+    StartAuraTimers(unit.buffs)
+    StartAuraTimers(unit.debuffs)
   end
 
   -- indicators
