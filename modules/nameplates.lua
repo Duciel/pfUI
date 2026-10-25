@@ -863,7 +863,7 @@ nameplates:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "target", "focu
         combopoints[i] = CreateFrame("Frame", nil, nameplate)
         combopoints[i]:Hide()
         combopoints[i]:SetFrameLevel(8)
-        combopoints[i].tex = combopoints[i]:CreateTexture("OVERLAY")
+        combopoints[i].tex = combopoints[i]:CreateTexture(nil, "OVERLAY")
         combopoints[i].tex:SetAllPoints()
 
         if i < 3 then

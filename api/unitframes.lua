@@ -2238,7 +2238,7 @@ function pfUI.uf:AddIcon(frame, pos, icon, timeleft, stacks, start, duration)
   if not frame.icon[pos] then
     frame.icon[pos] = CreateFrame("Frame", nil, frame.icon)
     frame.icon[pos]:SetParent(frame)
-    frame.icon[pos].tex = frame.icon[pos]:CreateTexture("OVERLAY")
+    frame.icon[pos].tex = frame.icon[pos]:CreateTexture(nil, "OVERLAY")
     frame.icon[pos].tex:SetAllPoints(frame.icon[pos])
     frame.icon[pos].tex:SetTexCoord(.08, .92, .08, .92)
     frame.icon[pos].stacks = frame.icon[pos]:CreateFontString(nil, "OVERLAY")
