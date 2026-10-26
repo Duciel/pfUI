@@ -313,10 +313,19 @@ function pfUI.uf:UpdateVisibility()
     self._label, self._id = nil, nil
   end
 
-  local unitstr = ("%s%s"):format(self.label or "", self.id or "")
-  self.unitstr = unitstr ~= "" and unitstr or nil
-  self:SetAttribute("unit", self.unitstr)
-  local visibility = ("[target=%s,exists] show; hide"):format(unitstr)
+  -- [PerfFix] Only rebuild the unit string / secure attribute when label or id
+  -- actually changed. This runs for ~100 frames 5x per second, and previously
+  -- built two strings and called SetAttribute every time.
+  local label, uid = self.label or "", self.id or ""
+  if self._vis_label ~= label or self._vis_id ~= uid or self._vis_init == nil then
+    self._vis_label, self._vis_id, self._vis_init = label, uid, true
+    local us = label .. uid
+    self.unitstr = us ~= "" and us or nil
+    self:SetAttribute("unit", self.unitstr)
+  end
+  local unitstr = self.unitstr or ""
+  -- sentinel: anything but "show"/"hide" means "show if the unit exists"
+  local visibility = "cond"
 
   -- Group frames are redundant when the group is already shown as a raid grid:
   -- either an actual raid, or a party promoted to the raid grid via
