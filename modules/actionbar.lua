@@ -81,6 +81,10 @@ pfUI:RegisterModule("actionbar", function ()
     ["ACTIONBAR_UPDATE_COOLDOWN"] = true,
     ["ACTIONBAR_UPDATE_USABLE"] = true,
     ["ACTIONBAR_UPDATE_STATE"] = true,
+    -- [PerfFix] moved here from global_events: fires on every ammo shot /
+    -- consumable use; only counts, equipped state, cooldowns and usability
+    -- can change, so it no longer triggers a full update of every button.
+    ["UNIT_INVENTORY_CHANGED"] = true,
   }
 
   -- events that are shared across all buttons
@@ -97,8 +101,6 @@ pfUI:RegisterModule("actionbar", function ()
     ["TRADE_SKILL_CLOSE"] = true,
     ["PLAYER_ENTER_COMBAT"] = true,
     ["PLAYER_LEAVE_COMBAT"] = true,
-    -- cooldown updates
-    ["UNIT_INVENTORY_CHANGED"] = true,
     -- auto repeat action
     ["START_AUTOREPEAT_SPELL"] = true,
     ["STOP_AUTOREPEAT_SPELL"] = true,
@@ -625,6 +627,25 @@ pfUI:RegisterModule("actionbar", function ()
   end
 
 
+  -- [PerfFix] light refresh for UNIT_INVENTORY_CHANGED (item counts,
+  -- equipped border); cooldown/usable are refreshed by the caller.
+  local function ButtonInventoryUpdate(button)
+    if not button or button.bar == 11 or button.bar == 12 then return end
+    local slotid = button.id
+    if IsConsumableAction(slotid) then
+      button.count:SetText(GetActionCount(slotid))
+    elseif IsReagentAction and IsReagentAction(slotid) then
+      button.count:SetText(GetReagentCount(slotid))
+    else
+      button.count:SetText(nil)
+    end
+    if IsEquippedAction(slotid) and C.bars.showequipped == "1" then
+      button.equipped:Show()
+    else
+      button.equipped:Hide()
+    end
+  end
+
   local function ButtonFullUpdate(button)
     if not button then return end
 
@@ -696,11 +717,29 @@ pfUI:RegisterModule("actionbar", function ()
       end
     end
 
+    -- [PerfFix] The passes below only touch buttons that are actually visible.
+    -- Hidden ones (other pages, hidden bars) are flagged stale and get one full
+    -- update the next time the 0.2s range pass sees them visible.
+
+    -- inventory changes (ammo, reagents, consumables)
+    if eventcache["UNIT_INVENTORY_CHANGED"] then
+      eventcache["UNIT_INVENTORY_CHANGED"] = nil
+      for id, button in pairs(buttoncache) do
+        if button:IsVisible() then
+          ButtonInventoryUpdate(button)
+          ButtonCooldownUpdate(button)
+          ButtonUsableUpdate(button)
+        else
+          button.pfStale = true
+        end
+      end
+    end
+
     -- run cached usable usable actions
     if eventcache["ACTIONBAR_UPDATE_USABLE"] then
       eventcache["ACTIONBAR_UPDATE_USABLE"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonUsableUpdate(button)
+        if button:IsVisible() then ButtonUsableUpdate(button) else button.pfStale = true end
       end
     end
 
@@ -708,7 +747,7 @@ pfUI:RegisterModule("actionbar", function ()
     if eventcache["ACTIONBAR_UPDATE_COOLDOWN"] then
       eventcache["ACTIONBAR_UPDATE_COOLDOWN"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonCooldownUpdate(button)
+        if button:IsVisible() then ButtonCooldownUpdate(button) else button.pfStale = true end
       end
     end
 
@@ -716,7 +755,7 @@ pfUI:RegisterModule("actionbar", function ()
     if eventcache["ACTIONBAR_UPDATE_STATE"] then
       eventcache["ACTIONBAR_UPDATE_STATE"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonIsActiveUpdate(button)
+        if button:IsVisible() then ButtonIsActiveUpdate(button) else button.pfStale = true end
       end
     end
 
@@ -738,7 +777,13 @@ pfUI:RegisterModule("actionbar", function ()
     if ( this.tick or .2) > GetTime() then return else this.tick = GetTime() + .2 end
 
     for id, button in pairs(buttoncache) do
-      if button:IsShown() then ButtonRangeUpdate(button) end
+      if button.pfStale and button:IsVisible() then
+        -- [PerfFix] catch up on updates skipped while hidden
+        button.pfStale = nil
+        ButtonFullUpdate(button)
+      elseif button:IsShown() then
+        ButtonRangeUpdate(button)
+      end
     end
   end
 
