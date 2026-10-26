@@ -2497,6 +2497,8 @@ pfUI:RegisterModule("gui", function ()
       CreateConfig(U["buff"], T["Number Of Debuffs Per Row"], C.buffs, "debuffrowsize")
       CreateConfig(U["buff"], T["Show Duration Inside Buff"], C.buffs, "textinside", "checkbox")
       CreateConfig(U["buff"], T["Buff Font Size"], C.buffs, "fontsize")
+      CreateConfig(Reload, T["Show Timer Animation"], C.buffs, "cooldown_anim", "checkbox")
+      CreateConfig(Reload, T["Reverse Timer Animation"], C.buffs, "cooldown_reverse", "checkbox")
     end)
 
     CreateGUIEntry(T["Buffs"], T["Totem Icons"], function()

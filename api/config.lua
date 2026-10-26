@@ -71,6 +71,8 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("buffs",      nil,           "debuffrowsize",    "16")
   pfUI:UpdateConfig("buffs",      nil,           "textinside",       "0")
   pfUI:UpdateConfig("buffs",      nil,           "fontsize",         "-1")
+  pfUI:UpdateConfig("buffs",      nil,           "cooldown_anim",    "1")
+  pfUI:UpdateConfig("buffs",      nil,           "cooldown_reverse", "1")
 
   pfUI:UpdateConfig("buffbar",    "pbuff",       "enable",           "0")
   pfUI:UpdateConfig("buffbar",    "pbuff",       "use_unitfonts",    "0")
