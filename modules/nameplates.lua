@@ -130,8 +130,8 @@ pfUI:RegisterModule("nameplates", function ()
     cfg.targetcastbar = C.nameplates["targetcastbar"] == "1"
     cfg.notargalpha = tonumber(C.nameplates.notargalpha) or 0.5
     if cfg.notargalpha > 1 then cfg.notargalpha = cfg.notargalpha / 100 end
-    -- Clamp to 0.99 so non-target plates never reach 1.0 (used for target detection)
-    if cfg.notargalpha > 0.99 then cfg.notargalpha = 0.99 end
+    -- Clamp to 1.0 so a 100% setting yields full opacity (target detection is GUID-based)
+    if cfg.notargalpha > 1 then cfg.notargalpha = 1 end
     cfg.namefightcolor = C.nameplates.namefightcolor == "1"
     cfg.spellname = C.nameplates.spellname == "1"
     cfg.showhp = C.nameplates.showhp == "1"
@@ -1445,11 +1445,10 @@ nameplates:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "target", "focu
     if not hasEventUpdate and (nameplate.lasttick or 0) + cfg.throttle_min > now then return end
 
     -- PERF: Intelligent throttling based on target/castbar status and plate count
-    -- Use GUID comparison as primary target detection: instant, immune to alpha transitions,
+    -- Use GUID comparison for target detection: instant, immune to alpha transitions,
     -- and immediately correct on de-target (unlike istarget which updates one tick later)
     local targetGuid = state and state.targetGuid
-    local target = (targetGuid and nameplate.cachedGuid and targetGuid == nameplate.cachedGuid) or
-                   (state and state.targetGuid and frame:GetAlpha() >= 0.99) or nil
+    local target = (targetGuid and nameplate.cachedGuid and targetGuid == nameplate.cachedGuid) or nil
     -- Target plate castbar runs on its own dedicated frame (nameplates.castbarFrame).
     -- For non-target plates with castbar active, use castbar throttle to ensure
     -- smooth animation without overloading the central loop.
