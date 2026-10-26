@@ -398,11 +398,13 @@ pfUI:RegisterModule("bags", function ()
         local name = "pfBag" .. bag .. "item" .. slot .. "Cooldown"
         bankslot.cd = CreateFrame("Cooldown", name, bankslot, "CooldownFrameTemplate")
         bankslot.cd.pfCooldownStyleAnimation = 1
+        bankslot.cd.pfCooldownReverse = tonumber(C.appearance.bags.cooldown_reverse) or 0
         bankslot.cd.pfCooldownType = "NOGCD"
       else
         local bagslot = pfUI.bags[bag].slots[slot].frame
         bagslot.cd = _G[bagslot:GetName().."Cooldown"]
         bagslot.cd.pfCooldownType = "NOGCD"
+        bagslot.cd.pfCooldownReverse = tonumber(C.appearance.bags.cooldown_reverse) or 0
       end
 
       if not pfUI.bags[bag].slots[slot].frame.backdrop then

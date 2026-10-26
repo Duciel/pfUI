@@ -159,6 +159,7 @@ pfUI:RegisterModule("nameplates", function ()
     cfg.debufftimers = C.nameplates.debufftimers == "1"
     cfg.debuffanim = tonumber(C.nameplates.debuffanim) or 0
     cfg.debufftext = tonumber(C.nameplates.debufftext) or 1
+    cfg.debreverse = tonumber(C.nameplates.debreverse) or 0
 
     -- Throttle delays, resolved once instead of per plate per tick.
     -- libthrottle:Get walks the saved-variable table, a defaults fallback and a
@@ -445,6 +446,7 @@ pfUI:RegisterModule("nameplates", function ()
 
     -- Set initial config flags (will be cached per-cooldown later)
     plate.debuffs[index].cd.pfCooldownStyleAnimation = cfg.debuffanim
+    plate.debuffs[index].cd.pfCooldownReverse = cfg.debreverse or 0
     plate.debuffs[index].cd.pfCooldownStyleText = cfg.debufftext
     plate.debuffs[index].cd.pfCooldownType = "ALL"
   end
@@ -486,6 +488,7 @@ pfUI:RegisterModule("nameplates", function ()
       local cooldown_anim = tonumber(C.nameplates.debuffanim) or 0
       nameplate.debuffs[i].cd.pfCooldownStyleText = cooldown_text
       nameplate.debuffs[i].cd.pfCooldownStyleAnimation = cooldown_anim
+      nameplate.debuffs[i].cd.pfCooldownReverse = tonumber(C.nameplates.debreverse) or 0
       
     end
   end
@@ -1396,12 +1399,14 @@ nameplates:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "target", "focu
             local cd = plate.debuffs[index].cd
             cd:Show()
             if not cachedStart or abs(cachedStart - newStart) > 0.5 then
-              if not cd.configCached or cd.cachedAnim ~= cfg.debuffanim or cd.cachedText ~= cfg.debufftext then
+              if not cd.configCached or cd.cachedAnim ~= cfg.debuffanim or cd.cachedText ~= cfg.debufftext or cd.cachedReverse ~= cfg.debreverse then
                 cd.pfCooldownStyleAnimation = cfg.debuffanim
                 cd.pfCooldownStyleText = cfg.debufftext
+                cd.pfCooldownReverse = cfg.debreverse or 0
                 cd:SetAlpha(cfg.debuffanim == 1 and 1 or 0)
                 cd.cachedAnim = cfg.debuffanim
                 cd.cachedText = cfg.debufftext
+                cd.cachedReverse = cfg.debreverse
                 cd.configCached = true
               end
               CooldownFrame_SetTimer(cd, newStart, effDuration, 1)

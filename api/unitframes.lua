@@ -470,6 +470,7 @@ function pfUI.uf:UpdateConfig()
 
   local cooldown_text = tonumber(f.config.cooldown_text)
   local cooldown_anim = tonumber(f.config.cooldown_anim)
+  local cooldown_reverse = tonumber(f.config.cooldown_reverse) or 0
 
   local relative_point = "BOTTOM"
   if f.config.panchor == "TOPLEFT" then
@@ -829,6 +830,7 @@ function pfUI.uf:UpdateConfig()
       f.buffs[i].cd.pfCooldownType = "ALL"
       f.buffs[i].cd.pfCooldownStyleText = cooldown_text
       f.buffs[i].cd.pfCooldownStyleAnimation = cooldown_anim
+      f.buffs[i].cd.pfCooldownReverse = cooldown_reverse
       f.buffs[i].cd:SetAlpha(cooldown_anim == 1 and 1 or 0)
       
       -- immediately show/hide existing cooldown text
@@ -889,6 +891,7 @@ function pfUI.uf:UpdateConfig()
       f.debuffs[i].cd.pfCooldownType = "ALL"
       f.debuffs[i].cd.pfCooldownStyleText = cooldown_text
       f.debuffs[i].cd.pfCooldownStyleAnimation = cooldown_anim
+      f.debuffs[i].cd.pfCooldownReverse = cooldown_reverse
       f.debuffs[i].cd:SetAlpha(cooldown_anim == 1 and 1 or 0)
       
       -- immediately show/hide existing cooldown text

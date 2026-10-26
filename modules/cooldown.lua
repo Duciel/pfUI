@@ -142,6 +142,12 @@ pfUI:RegisterModule("cooldown", function ()
       this:SetAlpha(0)
     end
 
+    -- reversed sweep direction (ClassicAPI backports SetReverse with the
+    -- modern Cooldown frame; stock Model swipes don't have it, so guard it)
+    if this.pfCooldownReverse == 1 and this.SetReverse then
+      this:SetReverse(true)
+    end
+
     -- print time as text on cooldown frames
     if ( not this.pfCooldownStyleText or this.pfCooldownStyleText == 1)
     and start > 0 and duration > 0 and (not enable or enable > 0) then
