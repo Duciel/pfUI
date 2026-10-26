@@ -81,9 +81,8 @@ pfUI:RegisterModule("actionbar", function ()
     ["ACTIONBAR_UPDATE_COOLDOWN"] = true,
     ["ACTIONBAR_UPDATE_USABLE"] = true,
     ["ACTIONBAR_UPDATE_STATE"] = true,
-    -- [PerfFix] moved here from global_events: fires on every ammo shot /
-    -- consumable use; only counts, equipped state, cooldowns and usability
-    -- can change, so it no longer triggers a full update of every button.
+    -- fires on every ammo shot / consumable use, but only counts, equipped
+    -- state, cooldowns and usability can change from it
     ["UNIT_INVENTORY_CHANGED"] = true,
   }
 
@@ -319,7 +318,7 @@ pfUI:RegisterModule("actionbar", function ()
     -- handle button highlight
     if keystate == "down" then
       self.highlight:Show()
-    elseif not MouseIsOver(self) then
+    elseif not MouseIsOverHitRect(self) then
       self.highlight:Hide()
     end
   end
@@ -402,6 +401,28 @@ pfUI:RegisterModule("actionbar", function ()
     GameTooltip:Hide()
   end
 
+  -- item counts and equipped border, the parts of a slot an inventory change touches
+  local function ButtonInventoryUpdate(self)
+    if self.bar == 11 or self.bar == 12 then return end
+    local sid = self.id
+
+    -- update consumables
+    if IsConsumableAction(sid) then
+      self.count:SetText(GetActionCount(sid))
+    elseif IsReagentAction and IsReagentAction(sid) then
+      self.count:SetText(GetReagentCount(sid))
+    else
+      self.count:SetText(nil)
+    end
+
+    -- equipped item
+    if IsEquippedAction(sid) and C.bars.showequipped == "1" then
+      self.equipped:Show()
+    else
+      self.equipped:Hide()
+    end
+  end
+
   local start, duration, enable, castable, autocast, token
   local grid, sid, id, bar, active, texture, _
   local function ButtonSlotUpdate(self)
@@ -462,23 +483,9 @@ pfUI:RegisterModule("actionbar", function ()
       self.active:Hide()
     end
 
+    ButtonInventoryUpdate(self)
+
     if self.bar ~= 11 and self.bar ~= 12 then
-      -- update consumables
-      if IsConsumableAction(sid) then
-        self.count:SetText(GetActionCount(sid))
-      elseif IsReagentAction and IsReagentAction(sid) then
-        self.count:SetText(GetReagentCount(sid))
-      else
-        self.count:SetText(nil)
-      end
-
-      -- equipped item
-      if IsEquippedAction(sid) and C.bars.showequipped == "1" then
-        self.equipped:Show()
-      else
-        self.equipped:Hide()
-      end
-
       -- update macro text
       if C.bars["bar"..self.bar] and C.bars["bar"..self.bar].showmacro == "1" then
         self.macro:SetText(GetActionText(sid))
@@ -717,11 +724,11 @@ pfUI:RegisterModule("actionbar", function ()
       end
     end
 
-    -- [PerfFix] The passes below only touch buttons that are actually visible.
-    -- Hidden ones (other pages, hidden bars) are flagged stale and get one full
-    -- update the next time the 0.2s range pass sees them visible.
+    -- The cached passes below only touch visible buttons. Hidden ones (other
+    -- pages, hidden bars) are flagged stale and get a full update once the
+    -- range pass sees them visible again.
 
-    -- inventory changes (ammo, reagents, consumables)
+    -- run cached inventory changes (ammo, reagents, consumables)
     if eventcache["UNIT_INVENTORY_CHANGED"] then
       eventcache["UNIT_INVENTORY_CHANGED"] = nil
       for id, button in pairs(buttoncache) do
@@ -730,7 +737,7 @@ pfUI:RegisterModule("actionbar", function ()
           ButtonCooldownUpdate(button)
           ButtonUsableUpdate(button)
         else
-          button.pfStale = true
+          button.stale = true
         end
       end
     end
@@ -739,7 +746,7 @@ pfUI:RegisterModule("actionbar", function ()
     if eventcache["ACTIONBAR_UPDATE_USABLE"] then
       eventcache["ACTIONBAR_UPDATE_USABLE"] = nil
       for id, button in pairs(buttoncache) do
-        if button:IsVisible() then ButtonUsableUpdate(button) else button.pfStale = true end
+        if button:IsVisible() then ButtonUsableUpdate(button) else button.stale = true end
       end
     end
 
@@ -747,7 +754,7 @@ pfUI:RegisterModule("actionbar", function ()
     if eventcache["ACTIONBAR_UPDATE_COOLDOWN"] then
       eventcache["ACTIONBAR_UPDATE_COOLDOWN"] = nil
       for id, button in pairs(buttoncache) do
-        if button:IsVisible() then ButtonCooldownUpdate(button) else button.pfStale = true end
+        if button:IsVisible() then ButtonCooldownUpdate(button) else button.stale = true end
       end
     end
 
@@ -755,7 +762,7 @@ pfUI:RegisterModule("actionbar", function ()
     if eventcache["ACTIONBAR_UPDATE_STATE"] then
       eventcache["ACTIONBAR_UPDATE_STATE"] = nil
       for id, button in pairs(buttoncache) do
-        if button:IsVisible() then ButtonIsActiveUpdate(button) else button.pfStale = true end
+        if button:IsVisible() then ButtonIsActiveUpdate(button) else button.stale = true end
       end
     end
 
@@ -777,9 +784,9 @@ pfUI:RegisterModule("actionbar", function ()
     if ( this.tick or .2) > GetTime() then return else this.tick = GetTime() + .2 end
 
     for id, button in pairs(buttoncache) do
-      if button.pfStale and button:IsVisible() then
-        -- [PerfFix] catch up on updates skipped while hidden
-        button.pfStale = nil
+      if button.stale and button:IsVisible() then
+        -- catch up on updates skipped while hidden
+        button.stale = nil
         ButtonFullUpdate(button)
       elseif button:IsShown() then
         ButtonRangeUpdate(button)
@@ -873,17 +880,28 @@ pfUI:RegisterModule("actionbar", function ()
   do
     local formpage, shift, ctrl, alt, default = 8, 6, 5, 3, 1
 
-    -- set temporary pagemaster bindings keybinds
-    if C.bars.pagemaster == "1" then
-      local modifier = { "ALT", "SHIFT", "CTRL" }
-      local buttons = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "+", "=", "´" }
-      local current = CURRENT_ACTIONBAR_PAGE
-      bars.pagemaster = bars.pagemaster or CreateFrame("Frame", "pfPageMaster", UIParent)
-      bars.pagemaster:RegisterEvent("PLAYER_ENTERING_WORLD")
-      bars.pagemaster:SetScript("OnEvent", function()
-        for _,mod in pairs(modifier) do
-          for _,but in pairs(buttons) do
-            SetBinding(mod.."-"..but)
+    -- while a page modifier is held, MOD-key must run the main bar binding on
+    -- that key so the switched page fires. Overrides do this without touching
+    -- the saved binding set.
+    local pagemods = {}
+    if C.bars.pagemasteralt == "1" then table.insert(pagemods, "ALT") end
+    if C.bars.pagemasterctrl == "1" then table.insert(pagemods, "CTRL") end
+    if C.bars.pagemastershift == "1" then table.insert(pagemods, "SHIFT") end
+
+    if table.getn(pagemods) > 0 then
+      local pagemaster = CreateFrame("Frame", "pfPageMaster", UIParent)
+      pagemaster:RegisterEvent("PLAYER_ENTERING_WORLD")
+      pagemaster:RegisterEvent("UPDATE_BINDINGS")
+      pagemaster:SetScript("OnEvent", function()
+        ClearOverrideBindings(this)
+        for i = 1, 12 do
+          for _, key in ipairs({ GetBindingKey("ACTIONBUTTON"..i) }) do
+            -- skip keys that already carry a modifier, e.g. "SHIFT-Q"
+            if not key:find("^%u+%-.") then
+              for _, mod in ipairs(pagemods) do
+                SetOverrideBinding(this, false, mod.."-"..key, "ACTIONBUTTON"..i)
+              end
+            end
           end
         end
       end)
@@ -898,6 +916,10 @@ pfUI:RegisterModule("actionbar", function ()
     pageswitch:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
     pageswitch:RegisterEvent("PLAYER_AURAS_CHANGED")
     pageswitch:RegisterEvent("PLAYER_LOGOUT")
+    local PROWL_IDS = { [5215] = true, [6783] = true, [9913] = true }
+    if class == "DRUID" then
+      pageswitch:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    end
     pageswitch:SetScript("OnEvent", function()
       if event == "PLAYER_LOGOUT" then
         this:UnregisterAllEvents()
@@ -917,6 +939,18 @@ pfUI:RegisterModule("actionbar", function ()
 
       if event == "PLAYER_ENTERING_WORLD" then
         formpaging = FullScan()
+        return
+      end
+
+      -- Eager prowl detection on the cast itself — zero-latency vs.
+      -- PLAYER_AURAS_CHANGED, which can land a frame or two behind it.
+      -- arg3 = spellID
+      if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        if PROWL_IDS[arg3] then
+          inCatForm = true
+          prowlActive = true
+          formpaging = true
+        end
         return
       end
 
@@ -943,20 +977,6 @@ pfUI:RegisterModule("actionbar", function ()
       end
     end)
 
-    -- Eager prowl detection via Nampower SPELL_GO_SELF — zero-latency vs.
-    -- PLAYER_AURAS_CHANGED, which can land a frame or two behind the cast.
-    -- Form changes are no longer hooked here; UPDATE_SHAPESHIFT_FORM covers
-    -- those without needing a per-spellID watchlist.
-    local PROWL_IDS = { [5215] = true, [6783] = true, [9913] = true }
-    pfUI.libdebuff_spell_go_hooks = pfUI.libdebuff_spell_go_hooks or {}
-    pfUI.libdebuff_spell_go_hooks["actionbar_prowl"] = function(spellId)
-      if class ~= "DRUID" then return end
-      if PROWL_IDS[spellId] then
-        inCatForm = true
-        prowlActive = true
-        formpaging = true
-      end
-    end
     pageswitch:SetScript("OnUpdate", function()
       -- switch actionbar page depending on meta key that is pressed
       if C.bars.pagemastershift == "1" and IsShiftKeyDown() then
@@ -1042,8 +1062,9 @@ pfUI:RegisterModule("actionbar", function ()
       f.slot = id
 
       -- cooldown
-      f.cd = CreateFrame("Model", f:GetName() .. "Cooldown", f, "CooldownFrameTemplate")
+      f.cd = CreateFrame("Cooldown", f:GetName() .. "Cooldown", f, "CooldownFrameTemplate")
       f.cd.pfCooldownStyleAnimation = 1
+      f.cd.pfCooldownReverse = tonumber(C.bars.cooldown_reverse) or 0
       f.cd.pfCooldownType = "NOGCD"
       f.cd.pfCooldownSize = cd_size
 
