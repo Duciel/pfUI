@@ -128,12 +128,18 @@ pfUI:RegisterModule("buff", function ()
     buff.texture:SetTexCoord(.07,.93,.07,.93)
     buff.texture:SetAllPoints(buff)
 
-    buff.timer = buff:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    -- overlay lifts the texts above the sweep: a child frame renders above
+    -- all of its parent's own regions, so the timer would dim under the
+    -- dark wedge otherwise (same reason pfCooldownText is its own frame)
+    buff.overlay = CreateFrame("Frame", nil, buff)
+    buff.overlay:SetAllPoints(buff)
+
+    buff.timer = buff.overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     buff.timer:SetTextColor(1,1,1,1)
     buff.timer:SetJustifyH("CENTER")
     buff.timer:SetJustifyV("CENTER")
 
-    buff.stacks = buff:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    buff.stacks = buff.overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     buff.stacks:SetTextColor(1,1,1,1)
     buff.stacks:SetJustifyH("RIGHT")
     buff.stacks:SetJustifyV("BOTTOM")
@@ -142,6 +148,8 @@ pfUI:RegisterModule("buff", function ()
     -- radial sweep (the template covers the button and starts hidden;
     -- the cooldown hook drives it from here, text stays with buff.timer)
     buff.cd = CreateFrame("Cooldown", buttonName .. "Cooldown", buff, "CooldownFrameTemplate")
+    buff.cd:SetFrameLevel(buff:GetFrameLevel() + 1)
+    buff.overlay:SetFrameLevel(buff:GetFrameLevel() + 2)
     buff.cd.pfCooldownType = "ALL"
     buff.cd.pfCooldownStyleText = 0
     buff.cd.pfCooldownStyleAnimation = tonumber(C.buffs.cooldown_anim) or 0
