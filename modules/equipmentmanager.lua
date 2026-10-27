@@ -2003,7 +2003,9 @@ pfUI:RegisterModule("equipmentmanager", function()
   local triggerHint = triggerPanel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   triggerHint:SetPoint("BOTTOMLEFT", triggerPanel, "BOTTOMLEFT", 14, 12)
   triggerHint:SetPoint("BOTTOMRIGHT", triggerPanel, "BOTTOMRIGHT", -14, 12)
+  triggerHint:SetHeight(40)  -- room to wrap to three lines below the editor
   triggerHint:SetJustifyH("LEFT")
+  triggerHint:SetJustifyV("BOTTOM")
   triggerHint:SetText(T["Triggers higher in the list take priority. Gear is never swapped in combat, while dead or while casting: the switch waits until it can happen."])
 
   editor.placeholder = triggerPanel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
