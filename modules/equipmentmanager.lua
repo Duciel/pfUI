@@ -1429,7 +1429,7 @@ pfUI:RegisterModule("equipmentmanager", function()
   local function InForm(value)
     local formID = GetShapeshiftFormID() or 0
     if value == "any" then return formID ~= 0 end
-    for _, id in ipairs(strsplittable(",", value)) do
+    for _, id in ipairs({ strsplit(",", value) }) do
       if tonumber(id) == formID then return true end
     end
     return false
@@ -1438,7 +1438,7 @@ pfUI:RegisterModule("equipmentmanager", function()
   -- Zone trigger values are "zone; subzone; ..." as typed or added with "Here".
   local function ZoneEntries(value)
     local entries = {}
-    for _, entry in ipairs(strsplittable(";", value or "")) do
+    for _, entry in ipairs({ strsplit(";", value or "") }) do
       entry = strtrim(entry):lower()
       if entry ~= "" then table.insert(entries, entry) end
     end
