@@ -931,38 +931,12 @@ pfUI:RegisterModule("equipmentmanager", function()
     if hasSelection then btnEquip:Enable(); btnSave:Enable()
     else btnEquip:Disable(); btnSave:Disable() end
 
-    if pfUI.equipmentmanager.RefreshExtras then
-      pfUI.equipmentmanager.RefreshExtras()
-    end
+    pfUI.equipmentmanager.RefreshExtras()
   end
 
   -- ============================================================
   -- Shared helpers for the extra panels (unused items / triggers)
   -- ============================================================
-
-  local INV_PLAYER = ITEM_INVENTORY_LOCATION_PLAYER
-  local INV_BAGS = ITEM_INVENTORY_LOCATION_BAGS
-  local INV_BANK = ITEM_INVENTORY_LOCATION_BANK
-  local BANK_BAG_OFFSET = ITEM_INVENTORY_BANK_BAG_OFFSET or 4
-  local BAG_SHIFT = 256  -- 1 << ITEM_INVENTORY_BAG_BIT_OFFSET
-
-  -- Same packed encoding C_EquipmentSet.GetItemLocations returns, so a
-  -- scanned item can be compared against the locations of every set item.
-  local function PackEquipped(slot)
-    return INV_PLAYER + slot
-  end
-
-  local function PackBag(bag, slot)
-    if bag == -1 then return INV_BANK + slot end
-    if bag >= 5 then return INV_BANK + INV_BAGS + (bag - BANK_BAG_OFFSET) * BAG_SHIFT + slot end
-    return INV_PLAYER + INV_BAGS + bag * BAG_SHIFT + slot
-  end
-
-  local function ItemStringFromLink(link)
-    if not link then return nil end
-    local _, _, itemString = string.find(link, "(item:[%-%d:]+)")
-    return itemString
-  end
 
   local function CreateCheckbox(parent, label)
     local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
@@ -1020,7 +994,7 @@ pfUI:RegisterModule("equipmentmanager", function()
     p.close = CreateFrame("Button", nil, p, "UIPanelCloseButton")
     p.close:SetPoint("TOPRIGHT", p, "TOPRIGHT", -4, -4)
     p.close:SetScript("OnClick", function() p:Hide() end)
-    if SkinCloseButton then SkinCloseButton(p.close, p.backdrop or p, -6, -6) end
+    SkinCloseButton(p.close, p.backdrop or p, -6, -6)
 
     table.insert(subPanels, p)
     return p
@@ -1039,14 +1013,8 @@ pfUI:RegisterModule("equipmentmanager", function()
   -- Items not in any set
   -- ============================================================
 
-  -- Equippable, but never something you'd put in a gear set.
-  local UNUSED_EXCLUDED_EQUIPLOC = {
-    [""] = true,
-    ["INVTYPE_BAG"] = true,
-    ["INVTYPE_QUIVER"] = true,
-    ["INVTYPE_AMMO"] = true,
-  }
   local WHERE_ORDER = { equipped = 1, bags = 2, bank = 3 }
+  local BANK_BAGS = { -1, 5, 6, 7, 8, 9, 10 }  -- main bank, bank bags
 
   local bankOpen = false
 
@@ -1054,55 +1022,51 @@ pfUI:RegisterModule("equipmentmanager", function()
   -- plus how many of those are on the ignore list. Ignored items are only
   -- included in the list when includeIgnored is set.
   local function ScanUnusedItems(includeIgnored)
-    -- Every packed location that currently holds an item of some set.
-    local inSet = {}
-    for _, setID in ipairs(GetVisibleSetIDs()) do
-      for _, loc in pairs(C_EquipmentSet.GetItemLocations(setID) or {}) do
-        -- 1 = ignored slot, -1 = missing item, 0 = empty: no item to match.
-        if loc > 1 then inSet[loc] = true end
-      end
-    end
-
-    local minQuality = tonumber(C.equipmentmanager.unusedquality) or 0
+    local minQuality = tonumber(C.equipmentmanager.unusedquality)
     local result, numIgnored = {}, 0
 
-    local function Consider(loc, itemID, link, where, bag, slot)
-      if not itemID or inSet[loc] then return end
-      local _, _, _, equipLoc, icon = C_Item.GetItemInfoInstant(itemID)
-      if not equipLoc or UNUSED_EXCLUDED_EQUIPLOC[equipLoc] then return end
-      local quality = C_Item.GetItemQualityByID(itemID) or 1
-      if quality < minQuality then return end
-
-      local ignored = db.ignore[itemID] and true or nil
-      if ignored then numIgnored = numIgnored + 1 end
-      if ignored and not includeIgnored then return end
-
-      table.insert(result, {
-        loc = loc, itemID = itemID, link = link, icon = icon,
-        quality = quality, where = where, bag = bag, slot = slot,
-        ignored = ignored,
-      })
+    local function Consider(entry)
+      entry.icon = C_Item.GetItemIconByID(entry.itemID)
+      entry.quality = C_Item.GetItemQualityByID(entry.itemID) or 1
+      if entry.quality < minQuality then return end
+      if db.ignore[entry.itemID] then
+        numIgnored = numIgnored + 1
+        if not includeIgnored then return end
+        entry.ignored = true
+      end
+      table.insert(result, entry)
     end
 
-    for slot = 1, 19 do
-      local itemID = GetInventoryItemID("player", slot)
-      if itemID then
-        Consider(PackEquipped(slot), itemID, GetInventoryItemLink("player", slot), "equipped", nil, slot)
+    -- Packed location of every item some set uses. Paperdoll and bag items
+    -- always resolve, so these match GetInventoryItemsForSlot's keys.
+    local inSet = {}
+    for _, setID in ipairs(GetVisibleSetIDs()) do
+      for _, location in pairs(C_EquipmentSet.GetItemLocations(setID)) do
+        inSet[location] = true
       end
     end
 
-    for bag = 0, 4 do
-      for slot = 1, (GetContainerNumSlots(bag) or 0) do
-        local itemID = C_Container.GetContainerItemID(bag, slot)
-        if itemID then
-          Consider(PackBag(bag, slot), itemID, GetContainerItemLink(bag, slot), "bags", bag, slot)
-        end
+    -- Everything on the paperdoll or in the bags that fits a gear slot,
+    -- keyed by packed location (rings and trinkets fit two slots).
+    local items = {}
+    for invSlot = 1, 19 do GetInventoryItemsForSlot(invSlot, items) end
+
+    for location, link in pairs(items) do
+      if not inSet[location] then
+        local loc = EquipmentManager_GetLocationData(location)
+        Consider({
+          where = loc.isBags and "bags" or "equipped",
+          bag = loc.bag, slot = loc.slot,
+          itemID = (C_Item.GetItemInfoInstant(link)), link = link,
+        })
       end
     end
 
     if C.equipmentmanager.unusedbank == "1" then
-      for loc, entry in pairs(db.bank) do
-        Consider(loc, entry.id, entry.link, "bank")
+      for _, item in ipairs(db.bank) do
+        if not item.inSet then
+          Consider({ where = "bank", bag = item.bag, slot = item.slot, itemID = item.id, link = item.link })
+        end
       end
     end
 
@@ -1110,28 +1074,29 @@ pfUI:RegisterModule("equipmentmanager", function()
       if a.where ~= b.where then return WHERE_ORDER[a.where] < WHERE_ORDER[b.where] end
       if a.quality ~= b.quality then return a.quality > b.quality end
       if a.itemID ~= b.itemID then return a.itemID < b.itemID end
-      return a.loc < b.loc
+      if a.bag ~= b.bag then return (a.bag or 0) < (b.bag or 0) end
+      return a.slot < b.slot
     end)
 
     return result, numIgnored
   end
 
   -- Snapshot the bank while it's open so its items stay listed afterwards.
-  -- Set membership is still resolved live: ClassicAPI resolves set items
-  -- in the bank even when the bank window is closed.
+  -- Set membership is recorded now as well: ClassicAPI only resolves set
+  -- items in the bank while the bank window is open.
   local function ScanBank()
-    if not bankOpen then return end
     local snapshot = {}
-    local function ScanContainer(bag)
-      for slot = 1, (GetContainerNumSlots(bag) or 0) do
+    for _, bag in ipairs(BANK_BAGS) do
+      for slot = 1, GetContainerNumSlots(bag) do
         local itemID = C_Container.GetContainerItemID(bag, slot)
         if itemID then
-          snapshot[PackBag(bag, slot)] = { id = itemID, link = GetContainerItemLink(bag, slot) }
+          table.insert(snapshot, {
+            id = itemID, link = GetContainerItemLink(bag, slot), bag = bag, slot = slot,
+            inSet = C_Container.GetContainerItemEquipmentSetInfo(bag, slot),
+          })
         end
       end
     end
-    ScanContainer(-1)
-    for bag = 5, 10 do ScanContainer(bag) end
     db.bank = snapshot
   end
 
@@ -1206,7 +1171,7 @@ pfUI:RegisterModule("equipmentmanager", function()
       f.pfEqMgrUnused = o
     end
 
-    if bagHighlight.locs[PackBag(bag, slot)] then
+    if bagHighlight.locs[bag] and bagHighlight.locs[bag][slot] then
       local w = f:GetWidth()
       if w and w > 0 then o.glow:SetSize(w * 1.8, w * 1.8) end
       o.dim:Hide()
@@ -1263,8 +1228,7 @@ pfUI:RegisterModule("equipmentmanager", function()
       elseif e.where == "bags" then
         GameTooltip:SetBagItem(e.bag, e.slot)
       else
-        local itemString = ItemStringFromLink(e.link) or ("item:" .. e.itemID)
-        GameTooltip:SetHyperlink(itemString)
+        GameTooltip:SetHyperlink(e.link)
       end
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(T["Not part of any equipment set"] .. " - " .. WHERE_TEXT[e.where], 1, .82, 0)
@@ -1282,11 +1246,9 @@ pfUI:RegisterModule("equipmentmanager", function()
         db.ignore[e.itemID] = (not db.ignore[e.itemID]) and true or nil
         GameTooltip:Hide()
         pfUI.equipmentmanager.Refresh()
-      elseif IsShiftKeyDown() and e.link then
-        if ChatFrameEditBox and ChatFrameEditBox:IsVisible() then
-          ChatFrameEditBox:Insert(e.link)
-        end
-      elseif IsControlKeyDown() and e.link then
+      elseif IsShiftKeyDown() then
+        if ChatFrameEditBox:IsVisible() then ChatFrameEditBox:Insert(e.link) end
+      elseif IsControlKeyDown() then
         DressUpItemLink(e.link)
       end
     end)
@@ -1338,7 +1300,10 @@ pfUI:RegisterModule("equipmentmanager", function()
     bagHighlight.active = true
     bagHighlight.locs = {}
     for _, e in ipairs(list) do
-      if e.where ~= "equipped" then bagHighlight.locs[e.loc] = true end
+      if e.bag then
+        bagHighlight.locs[e.bag] = bagHighlight.locs[e.bag] or {}
+        bagHighlight.locs[e.bag][e.slot] = true
+      end
     end
     UpdateBagHighlights()
   end
@@ -1355,6 +1320,7 @@ pfUI:RegisterModule("equipmentmanager", function()
   bankEvents:RegisterEvent("BANKFRAME_CLOSED")
   bankEvents:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
   bankEvents:RegisterEvent("BAG_UPDATE_DELAYED")
+  bankEvents:RegisterEvent("EQUIPMENT_SETS_CHANGED")
   bankEvents:SetScript("OnEvent", function()
     if event == "BANKFRAME_OPENED" then
       bankOpen = true
@@ -1444,12 +1410,9 @@ pfUI:RegisterModule("equipmentmanager", function()
 
   -- Condition checks ---------------------------------------------
 
-  local DINING_NAMES = {
-    ["Food"] = true, ["Drink"] = true, ["Refreshment"] = true,
-    ["Nourriture"] = true, ["Boisson"] = true, ["Rafraîchissement"] = true,
-    ["Essen"] = true, ["Trinken"] = true, ["Erfrischung"] = true,
-  }
-  local DINING_ICONS = { "Fork&Knife", "INV_Drink_07", "INV_Drink_18", "INV_Misc_Food" }
+  -- Every food and drink buff shares the name of the base Food (433) or
+  -- Drink (430) aura, so their localized names identify all of them.
+  local DINING_AURAS = { C_Spell.GetSpellName(433), C_Spell.GetSpellName(430) }
 
   -- Like Outfitter: the dining set stays on only while there's still
   -- health or mana to regenerate, so it comes off as soon as you're full.
@@ -1457,15 +1420,8 @@ pfUI:RegisterModule("equipmentmanager", function()
     local healthFull = UnitHealth("player") >= UnitHealthMax("player")
     local manaFull = UnitPowerType("player") ~= 0 or UnitMana("player") >= UnitManaMax("player")
     if healthFull and manaFull then return false end
-    for i = 1, 32 do
-      local name, icon = C_UnitAuras.UnitAura("player", i, "HELPFUL")
-      if not name then break end
-      if DINING_NAMES[name] then return true end
-      if icon then
-        for _, pattern in ipairs(DINING_ICONS) do
-          if string.find(icon, pattern, 1, true) then return true end
-        end
-      end
+    for _, name in ipairs(DINING_AURAS) do
+      if C_UnitAuras.GetAuraDataBySpellName("player", name, "HELPFUL") then return true end
     end
     return false
   end
@@ -1473,28 +1429,32 @@ pfUI:RegisterModule("equipmentmanager", function()
   local function InForm(value)
     local formID = GetShapeshiftFormID() or 0
     if value == "any" then return formID ~= 0 end
-    for id in string.gfind(value or "", "%d+") do
+    for _, id in ipairs(strsplittable(",", value)) do
       if tonumber(id) == formID then return true end
     end
     return false
   end
 
+  -- Zone trigger values are "zone; subzone; ..." as typed or added with "Here".
+  local function ZoneEntries(value)
+    local entries = {}
+    for _, entry in ipairs(strsplittable(";", value or "")) do
+      entry = strtrim(entry):lower()
+      if entry ~= "" then table.insert(entries, entry) end
+    end
+    return entries
+  end
+
   local function InZone(value)
-    if not value or value == "" then return false end
-    local zone = strlower(GetRealZoneText() or "")
-    local subzone = strlower(GetSubZoneText() or "")
-    local minimap = strlower(GetMinimapZoneText() or "")
-    for entry in string.gfind(value, "[^;]+") do
-      entry = strlower((string.gsub(entry, "^%s*(.-)%s*$", "%1")))
-      if entry ~= "" and (entry == zone or entry == subzone or entry == minimap) then
-        return true
-      end
+    local zone, subzone, minimap = GetRealZoneText():lower(), GetSubZoneText():lower(), GetMinimapZoneText():lower()
+    for _, entry in ipairs(ZoneEntries(value)) do
+      if entry == zone or entry == subzone or entry == minimap then return true end
     end
     return false
   end
 
   local function ParseTimeWindow(value)
-    local _, _, h1, m1, h2, m2 = string.find(value or "", "^%s*(%d%d?):(%d%d)%s*%-%s*(%d%d?):(%d%d)%s*$")
+    local _, _, h1, m1, h2, m2 = (value or ""):find("^%s*(%d%d?):(%d%d)%s*%-%s*(%d%d?):(%d%d)%s*$")
     if not h1 then return nil end
     return tonumber(h1) * 60 + tonumber(m1), tonumber(h2) * 60 + tonumber(m2)
   end
@@ -1534,7 +1494,7 @@ pfUI:RegisterModule("equipmentmanager", function()
   -- Engine ---------------------------------------------------------
 
   -- forceApply: the active trigger was edited, equip its (new) set again.
-  local engine = { ready = false, candidate = nil, since = 0, ticker = nil, forceApply = nil }
+  local engine = { ready = false, timer = nil, poll = nil, forceApply = nil }
 
   local function FindTrigger(id)
     if not id then return nil end
@@ -1558,15 +1518,25 @@ pfUI:RegisterModule("equipmentmanager", function()
     end
   end
 
-  -- Gear can't change in combat or while dead, and swapping mid-cast would
-  -- interrupt it: the switch simply waits for the next tick.
+  -- Whether the applied trigger differs from the one that should be, and
+  -- the one that should be.
+  local function NeedsSwitch()
+    local best = GetActiveTrigger()
+    return engine.forceApply or (best and best.id or 0) ~= (db.applied or 0), best
+  end
+
+  -- Gear can't change in combat or while dead, swapping mid-cast would
+  -- interrupt it, and only one set swap runs at a time: the switch waits.
   local function SwapBlocked(setID)
     if UnitAffectingCombat("player") or UnitIsDeadOrGhost("player") then return true end
-    if C_Spell.UnitCastingInfo("player") then return true end
-    if C_Spell.UnitChannelInfo and C_Spell.UnitChannelInfo("player") then return true end
-    if CursorHasItem() then return true end
-    if setID and C_EquipmentSet.EquipmentSetContainsLockedItems(setID) then return true end
-    return false
+    if C_Spell.UnitCastingInfo("player") or C_Spell.UnitChannelInfo("player") then return true end
+    if CursorHasItem() or not C_EquipmentSet.CanUseEquipmentSets() then return true end
+    return C_EquipmentSet.EquipmentSetContainsLockedItems(setID)
+  end
+
+  -- A swap that's blocked or refused is retried by scheduling again.
+  local function TryEquip(setID)
+    return not SwapBlocked(setID) and C_EquipmentSet.UseEquipmentSet(setID)
   end
 
   -- Remember the gear worn before the first trigger fires. Only slots that
@@ -1597,11 +1567,6 @@ pfUI:RegisterModule("equipmentmanager", function()
     C_EquipmentSet.ClearIgnoredSlotsForSave()
   end
 
-  local function DiscardRestoreSnapshot()
-    local id = C_EquipmentSet.GetEquipmentSetID(RESTORE_SET_NAME)
-    if id then C_EquipmentSet.DeleteEquipmentSet(id) end
-  end
-
   local function Announce(msg)
     if C.equipmentmanager.announce == "1" then Print(msg) end
   end
@@ -1611,86 +1576,99 @@ pfUI:RegisterModule("equipmentmanager", function()
   end
 
   local RefreshTriggerPanel  -- forward decl
-  local UpdateEngine         -- forward decl
+  local Schedule             -- forward decl
 
   local function Evaluate()
     if not engine.ready or C.equipmentmanager.autoswitch ~= "1" then return end
 
-    local best = GetActiveTrigger()
-    local bestID = best and best.id or 0
+    local needed, best = NeedsSwitch()
+    if not needed then return end
     local appliedID = db.applied or 0
 
-    if bestID == appliedID and not engine.forceApply then
-      engine.candidate = nil
-      return
-    end
-
-    -- Debounce: the new state has to hold for half a second, so bobbing
-    -- at the water surface or a quick target swap doesn't thrash gear.
-    if engine.candidate ~= bestID then
-      engine.candidate = bestID
-      engine.since = GetTime()
-      return
-    end
-    if GetTime() - engine.since < 0.5 then return end
-
     if best then
-      if SwapBlocked(best.setID) then return end
+      if SwapBlocked(best.setID) then return Schedule() end
       -- Only the first trigger in a chain records what to go back to.
       if appliedID == 0 then TakeRestoreSnapshot() end
-      C_EquipmentSet.UseEquipmentSet(best.setID)
+      if not C_EquipmentSet.UseEquipmentSet(best.setID) then return Schedule() end
       db.applied = best.id
       Announce(string.format(T["Equipping %s (%s)"], SetName(best.setID), DescribeTrigger(best)))
     else
       local prev = FindTrigger(appliedID)
       local leave = prev and prev.leave or "restore"
-      if leave == "restore" then
-        local restoreID = C_EquipmentSet.GetEquipmentSetID(RESTORE_SET_NAME)
-        if restoreID then
-          if SwapBlocked(restoreID) then return end
-          C_EquipmentSet.UseEquipmentSet(restoreID)
-          C_EquipmentSet.DeleteEquipmentSet(restoreID)
-          Announce(T["Restoring previous gear"])
-        end
+      local restoreID = C_EquipmentSet.GetEquipmentSetID(RESTORE_SET_NAME)
+      if leave == "restore" and restoreID then
+        if not TryEquip(restoreID) then return Schedule() end
+        Announce(T["Restoring previous gear"])
       elseif type(leave) == "number" and SetExists(leave) then
-        if SwapBlocked(leave) then return end
-        DiscardRestoreSnapshot()
-        C_EquipmentSet.UseEquipmentSet(leave)
+        if not TryEquip(leave) then return Schedule() end
         Announce(string.format(T["Equipping %s"], SetName(leave)))
-      else
-        DiscardRestoreSnapshot()
       end
+      -- The swap copied the item GUIDs when it started; the set can go.
+      if restoreID then C_EquipmentSet.DeleteEquipmentSet(restoreID) end
       db.applied = nil
     end
 
-    engine.candidate = nil
     engine.forceApply = nil
-    UpdateEngine()
-    if RefreshTriggerPanel then RefreshTriggerPanel() end
+    RefreshTriggerPanel()
   end
 
-  function UpdateEngine()
-    -- Keep ticking while a trigger is applied even if every trigger got
-    -- deleted, so its gear still gets restored.
-    local wanted = C.equipmentmanager.autoswitch == "1"
-                   and (table.getn(db.triggers) > 0 or db.applied ~= nil)
-    if wanted and not engine.ticker then
-      engine.ticker = C_Timer.NewTicker(0.25, Evaluate)
-    elseif not wanted and engine.ticker then
-      engine.ticker:Cancel()
-      engine.ticker = nil
+  -- Switch half a second after something changed, so bobbing at the water
+  -- surface or a quick target swap doesn't thrash gear. Also retries a
+  -- swap that's blocked.
+  function Schedule()
+    if engine.timer then return end
+    engine.timer = C_Timer.NewTimer(0.5, function()
+      engine.timer = nil
+      Evaluate()
+    end)
+  end
+
+  -- Swimming, the time of day and topping off while eating fire no event,
+  -- so those are polled while a trigger needs them.
+  local POLLED = { swimming = true, time = true, dining = true }
+
+  -- Call after any change to the triggers or the autoswitch setting.
+  local function UpdateEngine()
+    local poll = false
+    if C.equipmentmanager.autoswitch == "1" then
+      for _, t in ipairs(db.triggers) do
+        if t.enabled and POLLED[t.type] then poll = true end
+      end
     end
+    if poll and not engine.poll then
+      engine.poll = C_Timer.NewTicker(0.5, function()
+        if NeedsSwitch() then Schedule() end
+      end)
+    elseif not poll and engine.poll then
+      engine.poll:Cancel()
+      engine.poll = nil
+    end
+    Schedule()
   end
 
-  -- Zone/instance info is unreliable right after a loading screen.
   local engineEvents = CreateFrame("Frame")
   engineEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
   engineEvents:RegisterEvent("PLAYER_LEAVING_WORLD")
+  engineEvents:RegisterEvent("UNIT_AURA")               -- mounted, stealth, dining
+  engineEvents:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+  engineEvents:RegisterEvent("ZONE_CHANGED")
+  engineEvents:RegisterEvent("ZONE_CHANGED_INDOORS")
+  engineEvents:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+  engineEvents:RegisterEvent("PLAYER_UPDATE_RESTING")
+  engineEvents:RegisterEvent("PLAYER_TARGET_CHANGED")
+  engineEvents:RegisterEvent("PLAYER_REGEN_ENABLED")    -- a boss target died mid-fight
   engineEvents:SetScript("OnEvent", function()
-    engine.ready = false
-    engine.candidate = nil
-    if event == "PLAYER_ENTERING_WORLD" then
-      C_Timer.After(3, function() engine.ready = true end)
+    if event == "PLAYER_LEAVING_WORLD" then
+      engine.ready = false
+    elseif event == "PLAYER_ENTERING_WORLD" then
+      -- Zone/instance info is unreliable right after a loading screen.
+      engine.ready = false
+      C_Timer.After(3, function()
+        engine.ready = true
+        Schedule()
+      end)
+    elseif event ~= "UNIT_AURA" or arg1 == "player" then
+      Schedule()
     end
   end)
 
@@ -1730,6 +1708,7 @@ pfUI:RegisterModule("equipmentmanager", function()
     local target = index + delta
     if target < 1 or target > table.getn(db.triggers) then return end
     db.triggers[index], db.triggers[target] = db.triggers[target], db.triggers[index]
+    UpdateEngine()
     RefreshTriggerPanel()
   end
 
@@ -1749,6 +1728,7 @@ pfUI:RegisterModule("equipmentmanager", function()
     row.check:SetScript("OnClick", function()
       if not row.trigger then return end
       row.trigger.enabled = this:GetChecked() and true or false
+      UpdateEngine()
       RefreshTriggerPanel()
     end)
 
@@ -1857,8 +1837,8 @@ pfUI:RegisterModule("equipmentmanager", function()
   local function OnTriggerEdited()
     -- Re-evaluate from scratch: the edit may change which trigger wins,
     -- and an edited active trigger may now point at another set.
-    engine.candidate = nil
     if selectedTriggerID and selectedTriggerID == db.applied then engine.forceApply = true end
+    UpdateEngine()
     RefreshTriggerPanel()
   end
 
@@ -1907,7 +1887,7 @@ pfUI:RegisterModule("equipmentmanager", function()
     local t = SelectedTrigger()
     if not t then return end
     t.value = this:GetText()
-    engine.candidate = nil
+    Schedule()
   end)
   editValue:SetScript("OnEnterPressed", function()
     this:ClearFocus()
@@ -1950,12 +1930,13 @@ pfUI:RegisterModule("equipmentmanager", function()
     if not t then return end
     -- Shift adds the subzone instead of the zone.
     local here = IsShiftKeyDown() and GetSubZoneText() or GetRealZoneText()
-    if not here or here == "" then here = GetRealZoneText() end
-    if not t.value or t.value == "" then
+    if here == "" then here = GetRealZoneText() end
+    local entries = ZoneEntries(t.value)
+    if table.getn(entries) == 0 then
       t.value = here
     else
-      for entry in string.gfind(t.value, "[^;]+") do
-        if strlower((string.gsub(entry, "^%s*(.-)%s*$", "%1"))) == strlower(here) then return end
+      for _, entry in ipairs(entries) do
+        if entry == here:lower() then return end
       end
       t.value = t.value .. "; " .. here
     end
