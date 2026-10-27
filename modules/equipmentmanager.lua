@@ -1623,18 +1623,32 @@ pfUI:RegisterModule("equipmentmanager", function()
     end)
   end
 
-  -- Swimming, the time of day and topping off while eating fire no event,
-  -- so those are polled while a trigger needs them.
-  local POLLED = { swimming = true, time = true, dining = true }
+  -- Swimming and the time of day fire no event, so those are polled while
+  -- a trigger needs them.
+  local POLLED = { swimming = true, time = true }
+
+  local engineEvents = CreateFrame("Frame")
 
   -- Call after any change to the triggers or the autoswitch setting.
   local function UpdateEngine()
-    local poll = false
+    local poll, dining = false, false
     if C.equipmentmanager.autoswitch == "1" then
       for _, t in ipairs(db.triggers) do
         if t.enabled and POLLED[t.type] then poll = true end
+        if t.enabled and t.type == "dining" then dining = true end
       end
     end
+
+    -- The dining set comes off once health and mana are full; these fire
+    -- constantly in combat, so only listen while a dining trigger exists.
+    if dining then
+      engineEvents:RegisterUnitEvent("UNIT_HEALTH", "player")
+      engineEvents:RegisterUnitEvent("UNIT_MANA", "player")
+    else
+      engineEvents:UnregisterEvent("UNIT_HEALTH")
+      engineEvents:UnregisterEvent("UNIT_MANA")
+    end
+
     if poll and not engine.poll then
       engine.poll = C_Timer.NewTicker(0.5, function()
         if NeedsSwitch() then Schedule() end
@@ -1646,10 +1660,9 @@ pfUI:RegisterModule("equipmentmanager", function()
     Schedule()
   end
 
-  local engineEvents = CreateFrame("Frame")
   engineEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
   engineEvents:RegisterEvent("PLAYER_LEAVING_WORLD")
-  engineEvents:RegisterEvent("UNIT_AURA")               -- mounted, stealth, dining
+  engineEvents:RegisterUnitEvent("UNIT_AURA", "player") -- mounted, stealth, dining
   engineEvents:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
   engineEvents:RegisterEvent("ZONE_CHANGED")
   engineEvents:RegisterEvent("ZONE_CHANGED_INDOORS")
@@ -1667,7 +1680,7 @@ pfUI:RegisterModule("equipmentmanager", function()
         engine.ready = true
         Schedule()
       end)
-    elseif event ~= "UNIT_AURA" or arg1 == "player" then
+    else
       Schedule()
     end
   end)
